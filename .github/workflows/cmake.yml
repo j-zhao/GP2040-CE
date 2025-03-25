@@ -2,9 +2,9 @@ name: CMake
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "j-zhao" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "j-zhao" ]
 #  pull_request_target:
 #    branches: [ "main" ]
   workflow_dispatch:
@@ -23,6 +23,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
+<<<<<<< HEAD
         GP2040_BOARDCONFIG: 
           [ARCController,
           Blank,
@@ -69,6 +70,10 @@ jobs:
           Stress,
           SGFDevices,
           ZeroRhythm]
+=======
+        GP2040_BOARDCONFIG:
+          [Haute42COSMOX]
+>>>>>>> 07e437c5 (Build on j-zhao branch, mustfun board)
 
     steps:
     - name: Setup cmake
