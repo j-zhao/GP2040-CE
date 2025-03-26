@@ -23,8 +23,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-<<<<<<< HEAD
-        GP2040_BOARDCONFIG: 
+        GP2040_BOARDCONFIG:
           [ARCController,
           Blank,
           Pico,
@@ -70,10 +69,6 @@ jobs:
           Stress,
           SGFDevices,
           ZeroRhythm]
-=======
-        GP2040_BOARDCONFIG:
-          [Haute42COSMOX]
->>>>>>> 07e437c5 (Build on j-zhao branch, mustfun board)
 
     steps:
     - name: Setup cmake
