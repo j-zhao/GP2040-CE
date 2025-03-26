@@ -24,7 +24,7 @@ jobs:
     strategy:
       matrix:
         GP2040_BOARDCONFIG:
-          [Haute42COSMOX]
+          [MustfunBoard]
 
     steps:
     #Global Setup
