@@ -39,6 +39,8 @@
 #define GPIO_PIN_00 GpioAction::ASSIGNED_TO_ADDON // I2C
 #define GPIO_PIN_01 GpioAction::ASSIGNED_TO_ADDON // I2C
 #define GPIO_PIN_18 GpioAction::ASSIGNED_TO_ADDON // LED
+// #define GPIO_PIN_26 GpioAction::ASSIGNED_TO_ADDON // LED
+// #define GPIO_PIN_26 GpioAction::ASSIGNED_TO_ADDON // LED
 
 // Keyboard Mapping Configuration
 //                                            // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |
@@ -64,7 +66,7 @@
 
 #define USB_PERIPHERAL_ENABLED 1
 
-#define USB_PERIPHERAL_PIN_DPLUS 25
+#define USB_PERIPHERAL_PIN_DPLUS 26
 #define USB_PERIPHERAL_PIN_ORDER 0
 
 #define DEFAULT_INPUT_MODE_R1 INPUT_MODE_XBONE
