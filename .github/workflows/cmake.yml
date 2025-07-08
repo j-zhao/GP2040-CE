@@ -25,7 +25,14 @@ jobs:
       matrix:
         GP2040_BOARDCONFIG:
           [
-            MustfunBoard
+            MustfunBoard,
+            SplitFoxPro,
+            Haute42COSMOX,
+            Haute42COSMOXXAnalog,
+            Pico,
+            Blank,
+            DuelPadZen,
+            RP2040AdvancedBreakoutBoardUSBPassthrough
           #   ARCController,
           # Blank,
           # Pico,
