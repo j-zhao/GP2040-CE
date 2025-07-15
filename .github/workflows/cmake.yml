@@ -2,9 +2,9 @@ name: CMake
 
 on:
   push:
-    branches: [ "j-zhao" ]
+    branches: [ "main", "j-zhao" ]
   pull_request:
-    branches: [ "j-zhao" ]
+    branches: [ "main", "j-zhao" ]
 #  pull_request_target:
 #    branches: [ "main" ]
   workflow_dispatch:
@@ -15,55 +15,55 @@ on:
         type: choice
         options:
           - ""
-          # - ARCController
+          - ARCController
           - Blank
           - Pico
           - PicoW
           - Pico2
-          # - BentoBox
+          - BentoBox
           - DuelPadZen
-          # - FlatboxRev4
-          # - FlatboxRev5
-          # - FlatboxRev5RGB
-          # - FlatboxRev5USBPassthrough
-          # - FlatboxRev5Southpaw
-          # - FlatboxRev8
-          # - Granola
-          # - KB2040
-          # - KeyboardConverter
+          - FlatboxRev4
+          - FlatboxRev5
+          - FlatboxRev5RGB
+          - FlatboxRev5USBPassthrough
+          - FlatboxRev5Southpaw
+          - FlatboxRev8
+          - Granola
+          - KB2040
+          - KeyboardConverter
           - Haute42COSMOX
           - Haute42COSMOXMLite
           - Haute42COSMOXMUltra
           - Haute42COSMOXXAnalog
-          # - liatris
-          # - mavercaderev1
-          # - mavercaderev2
-          # - mistercadev2
-          # - opencore0
-          # - opencore0mixup
-          # - opencore0wasd
-          # - osumgp-rp2040
-          # - picoann
+          - liatris
+          - mavercaderev1
+          - mavercaderev2
+          - mistercadev2
+          - opencore0
+          - opencore0mixup
+          - opencore0wasd
+          - osumgp-rp2040
+          - picoann
           - PicoFightingBoard
-          # - PXPGamepad
-          # - ReflexCtrlGenesis6
-          # - ReflexCtrlNES
-          # - ReflexCtrlSaturn
-          # - ReflexCtrlSNES
-          # - ReflexCtrlVB
-          # - ReflexEncodeV1.2
-          # - ReflexEncodeV2.0
+          - PXPGamepad
+          - ReflexCtrlGenesis6
+          - ReflexCtrlNES
+          - ReflexCtrlSaturn
+          - ReflexCtrlSNES
+          - ReflexCtrlVB
+          - ReflexEncodeV1.2
+          - ReflexEncodeV2.0
           - RP2040AdvancedBreakoutBoard
           - RP2040AdvancedBreakoutBoardUSBPassthrough
           - RP2040MiniBreakoutBoard
           - RP2040MiniBreakoutBoardUSBPassthrough
-          # - SeeedXIAORP2040
-          # - SparkFunProMicro
-          # - SparkFunProMicroRP2350
+          - SeeedXIAORP2040
+          - SparkFunProMicro
+          - SparkFunProMicroRP2350
           - WaveshareZero
-          # - Stress
-          # - SGFDevices
-          # - ZeroRhythm
+          - Stress
+          - SGFDevices
+          - ZeroRhythm
           - MustfunBoard
           - SplitFoxPro
 
