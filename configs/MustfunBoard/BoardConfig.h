@@ -90,35 +90,40 @@
 #define INPUT_HISTORY_ENABLED 1
 #define INPUT_HISTORY_SIZE 21
 
-#define BUTTON_LAYOUT BUTTON_LAYOUT_BOARD_DEFINED_A
-#define BUTTON_LAYOUT_RIGHT BUTTON_LAYOUT_BOARD_DEFINED_B
+// #define BUTTON_LAYOUT BUTTON_LAYOUT_BOARD_DEFINED_A
+// #define BUTTON_LAYOUT_RIGHT BUTTON_LAYOUT_BOARD_DEFINED_B
 
 // B16
-#define BUTTON_LAYOUT_BOARD_DEFINED_A {\
-          {GP_ELEMENT_PIN_BUTTON, {47, 19, 4, 4, 1, 1, 17, GP_SHAPE_SQUARE}}, \
-          {GP_ELEMENT_PIN_BUTTON, {32, 27, 4, 4, 1, 1, 16, GP_SHAPE_SQUARE}}, \
-          {GP_ELEMENT_PIN_BUTTON, {42, 27, 4, 4, 1, 1, 15, GP_SHAPE_SQUARE}}, \
-          {GP_ELEMENT_PIN_BUTTON, {50, 32, 4, 4, 1, 1, 14, GP_SHAPE_SQUARE}}, \
-          {GP_ELEMENT_PIN_BUTTON, {40, 45, 4, 4, 1, 1, 13, GP_SHAPE_SQUARE}}, \
-          {GP_ELEMENT_PIN_BUTTON, {64, 17, 4, 4, 1, 1, 2, GP_SHAPE_SQUARE}},  \
-          {GP_ELEMENT_PIN_BUTTON, {53, 49, 5, 5, 1, 1, 12, GP_SHAPE_SQUARE}}, \
-          {GP_ELEMENT_PIN_BUTTON, {66, 45, 4, 4, 1, 1, 11, GP_SHAPE_SQUARE}}, \
-          {GP_ELEMENT_PIN_BUTTON, {77, 15, 2, 2, 1, 1, 20, GP_SHAPE_ELLIPSE}},\
-          {GP_ELEMENT_PIN_BUTTON, {84, 15, 2, 2, 1, 1, 24, GP_SHAPE_ELLIPSE}},\
-          {GP_ELEMENT_PIN_BUTTON, {91, 15, 2, 2, 1, 1, 21, GP_SHAPE_ELLIPSE}},\
-          {GP_ELEMENT_PIN_BUTTON, {98, 15, 2, 2, 1, 1, 23, GP_SHAPE_ELLIPSE }}\
+#define DEFAULT_BOARD_LAYOUT_A                                                     \
+     {                                                                             \
+          {GP_ELEMENT_PIN_BUTTON, {47, 19, 4, 4, 1, 1, 17, GP_SHAPE_SQUARE}},      \
+              {GP_ELEMENT_PIN_BUTTON, {32, 27, 4, 4, 1, 1, 16, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {42, 27, 4, 4, 1, 1, 15, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {50, 32, 4, 4, 1, 1, 14, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {40, 45, 4, 4, 1, 1, 13, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {64, 17, 4, 4, 1, 1, 2, GP_SHAPE_SQUARE}},   \
+              {GP_ELEMENT_PIN_BUTTON, {53, 49, 5, 5, 1, 1, 12, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {66, 45, 4, 4, 1, 1, 11, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {77, 15, 2, 2, 1, 1, 20, GP_SHAPE_ELLIPSE}}, \
+              {GP_ELEMENT_PIN_BUTTON, {84, 15, 2, 2, 1, 1, 24, GP_SHAPE_ELLIPSE}}, \
+              {GP_ELEMENT_PIN_BUTTON, {91, 15, 2, 2, 1, 1, 21, GP_SHAPE_ELLIPSE}}, \
+          {                                                                        \
+               GP_ELEMENT_PIN_BUTTON, { 98, 15, 2, 2, 1, 1, 23, GP_SHAPE_ELLIPSE } \
+          }                                                                        \
      }
 
-#define BUTTON_LAYOUT_BOARD_DEFINED_B {\
-          {GP_ELEMENT_PIN_BUTTON, {59, 27, 4, 4, 1, 1, 3, GP_SHAPE_SQUARE}},\
-          {GP_ELEMENT_PIN_BUTTON, {69, 25, 4, 4, 1, 1, 4, GP_SHAPE_SQUARE}},\
-          {GP_ELEMENT_PIN_BUTTON, {79, 25, 4, 4, 1, 1, 5, GP_SHAPE_SQUARE}},\
-          {GP_ELEMENT_PIN_BUTTON, {89, 27, 4, 4, 1, 1, 6, GP_SHAPE_SQUARE}},\
-          {GP_ELEMENT_PIN_BUTTON, {59, 37, 4, 4, 1, 1, 7, GP_SHAPE_SQUARE}},\
-          {GP_ELEMENT_PIN_BUTTON, {69, 35, 4, 4, 1, 1, 8, GP_SHAPE_SQUARE}},\
-          {GP_ELEMENT_PIN_BUTTON, {79, 35, 4, 4, 1, 1, 9, GP_SHAPE_SQUARE}},\
-          {GP_ELEMENT_PIN_BUTTON, {89, 37, 4, 4, 1, 1, 10, GP_SHAPE_SQUARE }\
-     }
+#define DEFAULT_BOARD_LAYOUT_B                                                    \
+     {                                                                            \
+          {GP_ELEMENT_PIN_BUTTON, {59, 27, 4, 4, 1, 1, 3, GP_SHAPE_SQUARE}},      \
+              {GP_ELEMENT_PIN_BUTTON, {69, 25, 4, 4, 1, 1, 4, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {79, 25, 4, 4, 1, 1, 5, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {89, 27, 4, 4, 1, 1, 6, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {59, 37, 4, 4, 1, 1, 7, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {69, 35, 4, 4, 1, 1, 8, GP_SHAPE_SQUARE}},  \
+              {GP_ELEMENT_PIN_BUTTON, {79, 35, 4, 4, 1, 1, 9, GP_SHAPE_SQUARE}},  \
+          {                                                                       \
+               GP_ELEMENT_PIN_BUTTON, { 89, 37, 4, 4, 1, 1, 10, GP_SHAPE_SQUARE } \
+          }
 
 // Keyboard Host enabled by default
 #define KEYBOARD_HOST_ENABLED 1
