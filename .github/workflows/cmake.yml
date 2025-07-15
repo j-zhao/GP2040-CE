@@ -65,6 +65,7 @@ on:
           - SGFDevices
           - ZeroRhythm
           - MustfunBoard
+          - SplitFoxPro
 
 env:
   BUILD_TYPE: Release
