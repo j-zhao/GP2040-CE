@@ -123,7 +123,8 @@
               {GP_ELEMENT_PIN_BUTTON, {79, 35, 4, 4, 1, 1, 9, GP_SHAPE_SQUARE}},  \
           {                                                                       \
                GP_ELEMENT_PIN_BUTTON, { 89, 37, 4, 4, 1, 1, 10, GP_SHAPE_SQUARE } \
-          }
+          }                                                                       \
+     }
 
 // Keyboard Host enabled by default
 #define KEYBOARD_HOST_ENABLED 1
