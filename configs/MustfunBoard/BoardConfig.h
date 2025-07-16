@@ -125,7 +125,7 @@
 //      }
 
 // Keyboard Host enabled by default
-// #define KEYBOARD_HOST_ENABLED 1
+#define KEYBOARD_HOST_ENABLED 0
 
 #define BOARD_LED_ENABLED 1
 #define BOARD_LED_TYPE ON_BOARD_LED_MODE_MODE_INDICATOR
