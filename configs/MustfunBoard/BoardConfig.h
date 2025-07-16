@@ -8,7 +8,6 @@
 
 #include "enums.pb.h"
 #include "class/hid/hid.h"
-
 #define BOARD_CONFIG_LABEL "MustfunBoard"
 
 // Main pin mapping Configuration
@@ -51,7 +50,7 @@
 
 #define TURBO_ENABLED 1
 
-#define MINI_MENU_GAMEPAD_INPUT 0             // Disable Gamepad Input for Mini Menu
+#define MINI_MENU_GAMEPAD_INPUT 1             // Disable Gamepad Input for Mini Menu
 #define BOARD_LEDS_PIN 18
 #define LED_BRIGHTNESS_MAXIMUM 100
 #define LED_BRIGHTNESS_STEPS 5
@@ -78,8 +77,8 @@
 #define LEDS_BUTTON_A1 16
 #define LEDS_BUTTON_S2 17
 #define LEDS_BUTTON_S1 18
-#define LEDS_BUTTON_A2 19
-#define LEDS_BUTTON_TURBO 20
+// #define LEDS_BUTTON_A2 19
+// #define LEDS_BUTTON_TURBO 20
 
 #define HAS_I2C_DISPLAY 1
 #define I2C0_ENABLED 1
