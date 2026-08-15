@@ -15,6 +15,8 @@
 #include "config.pb.h"
 #include "class/hid/hid.h"
 
+DisplayAddon* DisplayAddon::instance = nullptr;
+
 bool DisplayAddon::available() {
     const DisplayOptions& options = Storage::getInstance().getDisplayOptions();
     bool result = false;
@@ -46,6 +48,8 @@ bool DisplayAddon::available() {
 }
 
 void DisplayAddon::setup() {
+    instance = this;
+
     const DisplayOptions& options = Storage::getInstance().getDisplayOptions();
 
     // Setup GPGFX Options

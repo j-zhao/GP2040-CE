@@ -13,6 +13,7 @@
 #include "config_utils.h"
 #include "types.h"
 #include "version.h"
+#include "addons/display.h"
 
 #include <cstring>
 #include <string>
@@ -1003,6 +1004,48 @@ std::string getButtonLayouts()
         writeDoc(doc, "displayLayouts", "buttonLayoutRight", std::to_string(elementCtr), ele);
     }
 
+    return serialize_json(doc);
+}
+
+// Read-only mirror of the device's current display framebuffer for the web
+// preview. Does not touch the display driver, mode, or any other state.
+std::string getDisplayFrame()
+{
+    DisplayAddon* display = DisplayAddon::getInstance();
+    GPGFX* gpDisplay = display ? display->getDisplay() : nullptr;
+    GPGFX_DisplayBase* driver = gpDisplay ? gpDisplay->getDriver() : nullptr;
+    GPGFX_DisplayMetrics* metrics = driver ? driver->getMetrics() : nullptr;
+
+    uint16_t width = 0;
+    uint16_t height = 0;
+    bool isButtonLayout = false;
+    std::string encodedFrame;
+
+    // The packing below stores one bit per pixel, so it only fits the
+    // monochrome panels. Anything deeper reports an empty frame.
+    if (driver && metrics && metrics->depth == 1) {
+        width = metrics->width;
+        height = metrics->height;
+        isButtonLayout = display->isShowingButtonLayout();
+
+        std::vector<uint8_t> buffer(((size_t)width * height + 7) / 8, 0);
+        for (uint16_t y = 0; y < height; y++) {
+            for (uint16_t x = 0; x < width; x++) {
+                if (driver->getPixel(x, y)) {
+                    buffer[(y * width + x) / 8] |= 0x80 >> (x % 8);
+                }
+            }
+        }
+
+        encodedFrame = Base64::Encode(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+    }
+
+    const size_t capacity = JSON_OBJECT_SIZE(4) + encodedFrame.length() + 1;
+    DynamicJsonDocument doc(capacity);
+    writeDoc(doc, "width", width);
+    writeDoc(doc, "height", height);
+    writeDoc(doc, "isButtonLayout", isButtonLayout);
+    writeDoc(doc, "frame", encodedFrame);
     return serialize_json(doc);
 }
 
@@ -2760,6 +2803,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getGamepadOptions", getGamepadOptions },
     { "/api/getButtonLayoutDefs", getButtonLayoutDefs },
     { "/api/getButtonLayouts", getButtonLayouts },
+    { "/api/getDisplayFrame", getDisplayFrame },
     { "/api/getLedOptions", getLedOptions },
     { "/api/getPinMappings", getPinMappings },
     { "/api/getProfileOptions", getProfileOptions },

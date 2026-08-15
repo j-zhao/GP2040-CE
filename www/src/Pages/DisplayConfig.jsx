@@ -7,6 +7,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 
 import { AppContext } from '../Contexts/AppContext';
+import DisplayPreview from '../Components/DisplayPreview';
 import FormControl from '../Components/FormControl';
 import FormSelect from '../Components/FormSelect';
 import Section from '../Components/Section';
@@ -648,6 +649,9 @@ export default function DisplayConfigPage() {
 												</Col>
 											</Row>
 										)}
+										<Row className="mb-4">
+											<DisplayPreview values={values} />
+										</Row>
 										<h1>{t('DisplayConfig:section.status-layout-header')}</h1>
 										<Row className="mb-4">
 											<div className="col-sm-2 mb-3">

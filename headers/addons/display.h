@@ -229,6 +229,10 @@ public:
     void handleSystemRestart(GPEvent* e);
     void handleMenuNavigation(GPEvent* e);
     void handleSystemError(GPEvent* e);
+
+    static DisplayAddon* getInstance() { return instance; }
+    GPGFX* getDisplay() { return gpDisplay; }
+    bool isShowingButtonLayout() { return currDisplayMode == DisplayMode::BUTTONS; }
 private:
     bool updateDisplayScreen();
     void setMenuMappings();
@@ -254,6 +258,8 @@ private:
     GamepadButtonMapping *mapMenuToggle;
     GamepadButtonMapping *mapMenuSelect;
     std::string errorMessage;
+
+    static DisplayAddon* instance;
 };
 
 #endif

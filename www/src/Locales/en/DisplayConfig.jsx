@@ -10,6 +10,8 @@ export default {
 		'layout-header': 'Layout Options',
 		'mode-header': 'Mode Options',
 		'button-layout-header': 'Button Layout',
+		'preview-header': 'Layout Preview',
+		'preview-hint': 'Press B1 on the controller to show the button layout.',
 		'status-layout-header': 'Status Bar Layout',
 		'history-layout-header': 'Input History Layout',
 	},
