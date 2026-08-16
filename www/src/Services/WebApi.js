@@ -679,6 +679,16 @@ async function setHETriggerCalibrations(triggers) {
 	return Http.post(`${baseUrl}/api/setHETriggerCalibrations`, triggers);
 }
 
+// Live travel and output state, as last sampled by the running addon
+async function getHETriggerState() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getHETriggerState`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
 async function getHeldPins(abortSignal) {
 	try {
 		const response = await Http.get(`${baseUrl}/api/getHeldPins`, {
@@ -741,6 +751,7 @@ export default {
 	getExpansionPins,
 	setExpansionPins,
 	getHETriggerVoltage,
+	getHETriggerState,
 	setHETriggerCalibrations,
 	getHETriggerCalibrations,
 	setHETriggerOptions,

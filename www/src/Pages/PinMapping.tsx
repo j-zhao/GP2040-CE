@@ -35,7 +35,12 @@ import CustomSelect from '../Components/CustomSelect';
 import CaptureButton from '../Components/CaptureButton';
 
 import { BUTTON_MASKS, DPAD_MASKS, getButtonLabels } from '../Data/Buttons';
-import { BUTTON_ACTIONS, PinActionKeys, PinActionValues } from '../Data/Pins';
+import {
+	BUTTON_ACTIONS,
+	HE_ONLY_ACTIONS,
+	PinActionKeys,
+	PinActionValues,
+} from '../Data/Pins';
 import './PinMapping.scss';
 import { MultiValue, SingleValue } from 'react-select';
 import InfoCircle from '../Icons/InfoCircle';
@@ -63,6 +68,7 @@ const isNonSelectable = (action: PinActionValues) =>
 	[
 		BUTTON_ACTIONS.NONE,
 		BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO,
+		...HE_ONLY_ACTIONS,
 		...disabledOptions,
 	].includes(action);
 
@@ -222,6 +228,143 @@ const ProfileSocdSelect = memo(function ProfileSocdSelect({
 	);
 });
 
+const HE_RT_OPTION_KEYS = ['off', 'normal', 'continuous']; // index == HERapidTriggerMode
+
+// Per-profile hall effect overrides. These replace the per-channel thresholds
+// for every channel at once; actions and calibration stay global.
+const ProfileHESettings = memo(function ProfileHESettings({
+	profileIndex,
+}: {
+	profileIndex: number;
+}) {
+	const { t } = useTranslation('');
+	const setProfileHE = useProfilesStore((state) => state.setProfileHE);
+	const settings = useProfilesStore(
+		useShallow((state) => ({
+			heEnabled: state.profiles[profileIndex].heEnabled,
+			heActuationPoint: state.profiles[profileIndex].heActuationPoint,
+			heDeactuationPoint: state.profiles[profileIndex].heDeactuationPoint,
+			heRtMode: state.profiles[profileIndex].heRtMode,
+			heRtPressSensitivity: state.profiles[profileIndex].heRtPressSensitivity,
+			heRtReleaseSensitivity:
+				state.profiles[profileIndex].heRtReleaseSensitivity,
+		})),
+	);
+
+	const setNumber = useCallback(
+		(field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
+			setProfileHE(profileIndex, {
+				[field]: parseInt(event.target.value, 10) || 0,
+			});
+		},
+		[],
+	);
+
+	// An actuation point of zero would be satisfied by a key at rest, so turning
+	// the override on seeds a usable value rather than whatever happened to be
+	// stored.
+	const onToggle = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			const enabled = event.target.checked;
+			setProfileHE(profileIndex, {
+				heEnabled: enabled,
+				...(enabled && !settings.heActuationPoint
+					? { heActuationPoint: 450 }
+					: {}),
+				...(enabled && !settings.heRtPressSensitivity
+					? { heRtPressSensitivity: 30 }
+					: {}),
+			});
+		},
+		[settings.heActuationPoint, settings.heRtPressSensitivity],
+	);
+
+	return (
+		<div className="mt-2">
+			<FormCheck
+				label={t('PinMapping:profile-he-override')}
+				type="switch"
+				checked={Boolean(settings.heEnabled)}
+				onChange={onToggle}
+			/>
+			{settings.heEnabled && (
+				<Row className="mt-2">
+					<Col md={6}>
+						<Form.Label>{t('PinMapping:profile-he-actuation')}</Form.Label>
+						<Form.Control
+							type="number"
+							min={1}
+							max={1000}
+							value={settings.heActuationPoint}
+							onChange={setNumber('heActuationPoint')}
+						/>
+					</Col>
+					<Col md={6}>
+						<Form.Label>{t('PinMapping:profile-he-deactuation')}</Form.Label>
+						<Form.Control
+							type="number"
+							min={0}
+							max={1000}
+							value={settings.heDeactuationPoint}
+							onChange={setNumber('heDeactuationPoint')}
+						/>
+					</Col>
+					<Col md={6} className="mt-2">
+						<Form.Label>{t('PinMapping:profile-he-rt-mode')}</Form.Label>
+						<Form.Select
+							value={settings.heRtMode}
+							onChange={(event) =>
+								setProfileHE(profileIndex, {
+									heRtMode: parseInt(event.target.value, 10),
+								})
+							}
+						>
+							{HE_RT_OPTION_KEYS.map((key, value) => (
+								<option key={key} value={value}>
+									{t(`PinMapping:profile-he-rt-mode-options.${key}`)}
+								</option>
+							))}
+						</Form.Select>
+					</Col>
+					{settings.heRtMode > 0 && (
+						<>
+							<Col md={6} className="mt-2">
+								<Form.Label>
+									{t('PinMapping:profile-he-press-sensitivity')}
+								</Form.Label>
+								<Form.Control
+									type="number"
+									min={1}
+									max={1000}
+									value={settings.heRtPressSensitivity}
+									onChange={setNumber('heRtPressSensitivity')}
+								/>
+							</Col>
+							<Col md={6} className="mt-2">
+								<Form.Label>
+									{t('PinMapping:profile-he-release-sensitivity')}
+								</Form.Label>
+								<Form.Control
+									type="number"
+									min={0}
+									max={1000}
+									value={settings.heRtReleaseSensitivity}
+									onChange={setNumber('heRtReleaseSensitivity')}
+								/>
+							</Col>
+						</>
+					)}
+					<Col md={12}>
+						<Form.Text muted>
+							{t('PinMapping:profile-he-mirror-note')}
+						</Form.Text>
+					</Col>
+				</Row>
+			)}
+		</div>
+	);
+});
+
 const PinSelectList = memo(function PinSelectList({
 	profileIndex,
 }: {
@@ -236,6 +379,12 @@ const PinSelectList = memo(function PinSelectList({
 				'enabled',
 				'socdEnabled',
 				'socdMode',
+				'heEnabled',
+				'heActuationPoint',
+				'heDeactuationPoint',
+				'heRtMode',
+				'heRtPressSensitivity',
+				'heRtReleaseSensitivity',
 			]),
 		),
 	);
@@ -415,6 +564,7 @@ const PinSection = memo(function PinSection({
 								profileIndex={profileIndex}
 								sliderEnabled={sliderEnabled}
 							/>
+							<ProfileHESettings profileIndex={profileIndex} />
 						</Col>
 						{profileIndex > 0 && (
 							<Col className='order-first order-md-last'>

@@ -212,10 +212,25 @@ message GpioMappingInfo
     optional uint32 customButtonMask = 4;
 }
 
+// Per-profile hall effect overrides. These apply to every channel at once;
+// per-channel actions and calibration stay global. Travel values are tenths of
+// a percent, and 0 keeps the same "mirror the other value" meaning it has in
+// HETriggerInfo.
+message HEProfileSettings
+{
+    optional bool enabled = 1 [default = false];
+    optional uint32 actuationPoint = 2 [(nanopb).int_size = IS_16];
+    optional uint32 deactuationPoint = 3 [(nanopb).int_size = IS_16];
+    optional HERapidTriggerMode rtMode = 4;
+    optional uint32 rtPressSensitivity = 5 [(nanopb).int_size = IS_16];
+    optional uint32 rtReleaseSensitivity = 6 [(nanopb).int_size = IS_16];
+}
+
 message ProfileSettings
 {
     optional bool socdEnabled = 1 [default = false];
     optional SOCDMode socdMode = 2;
+    optional HEProfileSettings heSettings = 3;
 }
 
 message GpioMappings
@@ -886,17 +901,27 @@ message ReactiveLEDOptions
     repeated ReactiveLEDInfo leds = 2 [(nanopb).max_count = 10];
 }
 
+// Travel-based fields are in tenths of a percent of calibrated travel, 0-1000.
 message HETriggerInfo
 {
     optional GpioAction action = 1;
-    optional int32 active = 2;
+    optional int32 active = 2 [deprecated = true];
     optional int32 idle = 3;
     optional int32 pressed = 4;
     optional int32 polarity = 5 [deprecated = true];
-    optional int32 release = 6;
-    optional int32 noise = 7;
-    optional bool rapidTrigger = 8; 
+    optional int32 release = 6 [deprecated = true];
+    optional int32 noise = 7 [deprecated = true];
+    optional bool rapidTrigger = 8 [deprecated = true];
     optional bool is_polarized = 9;
+    optional uint32 actuationPoint = 10 [(nanopb).int_size = IS_16];
+    // 0 mirrors actuationPoint
+    optional uint32 deactuationPoint = 11 [(nanopb).int_size = IS_16];
+    optional HERapidTriggerMode rtMode = 12;
+    optional uint32 rtPressSensitivity = 13 [(nanopb).int_size = IS_16];
+    // 0 mirrors rtPressSensitivity
+    optional uint32 rtReleaseSensitivity = 14 [(nanopb).int_size = IS_16];
+    // 0 is no partner, otherwise the partner channel index plus one
+    optional uint32 socdPartner = 15 [(nanopb).int_size = IS_16];
 }
 
 message HETriggerOptions
@@ -914,6 +939,11 @@ message HETriggerOptions
     repeated HETriggerInfo triggers = 11 [(nanopb).max_count = 32];
     optional bool emaSmoothing = 12;
     optional int32 smoothingFactor = 13;
+    optional uint32 noiseFloor = 14 [(nanopb).int_size = IS_16];
+    optional uint32 analogDeadzone = 15 [(nanopb).int_size = IS_16];
+    optional HEAnalogCurve analogCurve = 16;
+    optional uint32 muxSettleMicros = 17 [(nanopb).int_size = IS_8];
+    optional bool analogProportional = 18;
 }
 
 message AddonOptions
@@ -956,6 +986,7 @@ message MigrationHistory
     optional bool gpioMappingsMigrated = 2 [default = false];
     optional bool buttonProfilesMigrated = 3 [default = false];
     optional bool profileEnabledFlagsMigrated = 4 [default = false];
+    optional bool heTriggerThresholdsMigrated = 5 [default = false];
 }
 
 message Config

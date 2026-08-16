@@ -361,6 +361,8 @@ enum GpioAction
     MODE_WHEEL_PEDAL_GAS         = 128;
     MODE_WHEEL_PEDAL_BRAKE       = 129;
     MODE_WHEEL_PEDAL_CLUTCH      = 130;
+    ANALOG_TRIGGER_LT            = 131;
+    ANALOG_TRIGGER_RT            = 132;
 }
 
 enum GpioDirection
@@ -708,4 +710,22 @@ enum MouseMovementMode
     MOUSE_MOVEMENT_NONE = 0;
     MOUSE_MOVEMENT_LEFT_ANALOG = 1;
     MOUSE_MOVEMENT_RIGHT_ANALOG = 2;
+};
+
+enum HERapidTriggerMode
+{
+    option (nanopb_enumopt).long_names = false;
+
+    HE_RT_OFF = 0;
+    HE_RT_NORMAL = 1;
+    HE_RT_CONTINUOUS = 2;
+};
+
+enum HEAnalogCurve
+{
+    option (nanopb_enumopt).long_names = false;
+
+    HE_CURVE_LINEAR = 0;
+    HE_CURVE_EXPONENTIAL = 1;
+    HE_CURVE_S = 2;
 };

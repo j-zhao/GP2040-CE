@@ -11,6 +11,19 @@ export default {
 	'profile-socd-use-global': 'Use global setting',
 	'profile-socd-slider-note':
 		'The SOCD slider add-on is enabled. The slider hardware overrides this setting.',
+	'profile-he-override': 'Override Hall-Effect Thresholds',
+	'profile-he-actuation': 'Actuation Point (0.1%)',
+	'profile-he-deactuation': 'Deactuation Point (0.1%)',
+	'profile-he-rt-mode': 'Rapid Trigger',
+	'profile-he-rt-mode-options': {
+		off: 'Off',
+		normal: 'Rapid Trigger',
+		continuous: 'Continuous Rapid Trigger',
+	},
+	'profile-he-press-sensitivity': 'Press Sensitivity (0.1%)',
+	'profile-he-release-sensitivity': 'Release Sensitivity (0.1%)',
+	'profile-he-mirror-note':
+		'Applies to every hall-effect channel. A deactuation point of 0 uses the actuation point, and a release sensitivity of 0 uses the press sensitivity.',
 	'profile-pin-mapping-title': '{{profileLabel}} - GPIO Pin Mapping',
 	'profile-label-default': 'Profile {{profileNumber}}',
 	'profile-add-button': '+ Add Profile',
@@ -94,6 +107,8 @@ export default {
 		ANALOG_DIRECTION_RS_Y_POS: 'Right Analog Stick Y+ (Down)',
 		ANALOG_DIRECTION_MOD_LOW: 'Analog Stick Tilt 1',
 		ANALOG_DIRECTION_MOD_HIGH: 'Analog Stick Tilt 2',
+		ANALOG_TRIGGER_LT: 'Analog Trigger L2',
+		ANALOG_TRIGGER_RT: 'Analog Trigger R2',
 		BUTTON_PRESS_INPUT_REVERSE: 'Reverse Input',
 		SUSTAIN_FOCUS_MODE: 'Focus Mode Enable',
 		SUSTAIN_4_8_WAY_MODE: 'Toggle 4-Way Mode',

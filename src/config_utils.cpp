@@ -1,5 +1,7 @@
 #include "config_utils.h"
 
+#include <limits>
+
 #include "config.pb.h"
 #include "enums.pb.h"
 #include "layoutmanager.h"
@@ -283,6 +285,18 @@
     #define EXTRA_BUTTON_MASK 0
 #endif
 
+// Shared by every profile slot, so the per-profile hall effect overrides cannot
+// come up all-zero on an upgrade.
+static void initUnsetHEProfileSettings(HEProfileSettings& settings)
+{
+    INIT_UNSET_PROPERTY(settings, enabled, false);
+    INIT_UNSET_PROPERTY(settings, actuationPoint, HETRIGGER_DEFAULT_ACTUATION);
+    INIT_UNSET_PROPERTY(settings, deactuationPoint, HETRIGGER_DEFAULT_DEACTUATION);
+    INIT_UNSET_PROPERTY(settings, rtMode, HETRIGGER_DEFAULT_RT_MODE);
+    INIT_UNSET_PROPERTY(settings, rtPressSensitivity, HETRIGGER_DEFAULT_RT_PRESS_SENS);
+    INIT_UNSET_PROPERTY(settings, rtReleaseSensitivity, HETRIGGER_DEFAULT_RT_RELEASE_SENS);
+}
+
 void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
 {
     const uint8_t emptyByteArray[0] = {};
@@ -323,11 +337,16 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.gamepadOptions, miniMenuGamepadInput, MINI_MENU_GAMEPAD_INPUT);
 
     // per-profile settings (profile 1 lives in gpioMappings, 2-6 in profileOptions)
+    // The hall effect overrides need real defaults even while disabled, because
+    // an all-zero actuation point would hold every channel down the moment the
+    // override is switched on.
     INIT_UNSET_PROPERTY(config.gpioMappings.settings, socdEnabled, false);
     INIT_UNSET_PROPERTY(config.gpioMappings.settings, socdMode, SOCD_MODE_NEUTRAL);
+    initUnsetHEProfileSettings(config.gpioMappings.settings.heSettings);
     for (size_t i = 0; i < sizeof(config.profileOptions.gpioMappingsSets) / sizeof(config.profileOptions.gpioMappingsSets[0]); i++) {
         INIT_UNSET_PROPERTY(config.profileOptions.gpioMappingsSets[i].settings, socdEnabled, false);
         INIT_UNSET_PROPERTY(config.profileOptions.gpioMappingsSets[i].settings, socdMode, SOCD_MODE_NEUTRAL);
+        initUnsetHEProfileSettings(config.profileOptions.gpioMappingsSets[i].settings.heSettings);
     }
 
     // hotkeyOptions
@@ -843,261 +862,116 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions, emaSmoothing, HETRIGGER_SMOOTHING_ENABLED);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions, smoothingFactor, HETRIGGER_SMOOTHING_FACTOR);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[0], action, HETRIGGER_HE0_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[0], active, HETRIGGER_HE0_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[0], idle, HETRIGGER_HE0_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[0], pressed, HETRIGGER_HE0_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[0], is_polarized, HETRIGGER_HE0_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[0], release, HETRIGGER_HE0_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[0], noise, HETRIGGER_HE0_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[0], rapidTrigger, HETRIGGER_HE0_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[1], action, HETRIGGER_HE1_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[1], active, HETRIGGER_HE1_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[1], idle, HETRIGGER_HE1_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[1], pressed, HETRIGGER_HE1_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[1], is_polarized, HETRIGGER_HE1_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[1], release, HETRIGGER_HE1_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[1], noise, HETRIGGER_HE1_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[1], rapidTrigger, HETRIGGER_HE1_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[2], action, HETRIGGER_HE2_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[2], active, HETRIGGER_HE2_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[2], idle, HETRIGGER_HE2_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[2], pressed, HETRIGGER_HE2_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[2], is_polarized, HETRIGGER_HE2_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[2], release, HETRIGGER_HE2_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[2], noise, HETRIGGER_HE2_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[2], rapidTrigger, HETRIGGER_HE2_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[3], action, HETRIGGER_HE3_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[3], active, HETRIGGER_HE3_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[3], idle, HETRIGGER_HE3_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[3], pressed, HETRIGGER_HE3_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[3], is_polarized, HETRIGGER_HE3_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[3], release, HETRIGGER_HE3_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[3], noise, HETRIGGER_HE3_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[3], rapidTrigger, HETRIGGER_HE3_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[4], action, HETRIGGER_HE4_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[4], active, HETRIGGER_HE4_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[4], idle, HETRIGGER_HE4_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[4], pressed, HETRIGGER_HE4_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[4], is_polarized, HETRIGGER_HE4_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[4], release, HETRIGGER_HE4_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[4], noise, HETRIGGER_HE4_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[4], rapidTrigger, HETRIGGER_HE4_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[5], action, HETRIGGER_HE5_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[5], active, HETRIGGER_HE5_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[5], idle, HETRIGGER_HE5_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[5], pressed, HETRIGGER_HE5_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[5], is_polarized, HETRIGGER_HE5_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[5], release, HETRIGGER_HE5_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[5], noise, HETRIGGER_HE5_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[5], rapidTrigger, HETRIGGER_HE5_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[6], action, HETRIGGER_HE6_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[6], active, HETRIGGER_HE6_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[6], idle, HETRIGGER_HE6_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[6], pressed, HETRIGGER_HE6_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[6], is_polarized, HETRIGGER_HE6_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[6], release, HETRIGGER_HE6_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[6], noise, HETRIGGER_HE6_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[6], rapidTrigger, HETRIGGER_HE6_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[7], action, HETRIGGER_HE7_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[7], active, HETRIGGER_HE7_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[7], idle, HETRIGGER_HE7_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[7], pressed, HETRIGGER_HE7_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[7], is_polarized, HETRIGGER_HE7_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[7], release, HETRIGGER_HE7_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[7], noise, HETRIGGER_HE7_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[7], rapidTrigger, HETRIGGER_HE7_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[8], action, HETRIGGER_HE8_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[8], active, HETRIGGER_HE8_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[8], idle, HETRIGGER_HE8_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[8], pressed, HETRIGGER_HE8_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[8], is_polarized, HETRIGGER_HE8_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[8], release, HETRIGGER_HE8_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[8], noise, HETRIGGER_HE8_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[8], rapidTrigger, HETRIGGER_HE8_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[9], action, HETRIGGER_HE9_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[9], active, HETRIGGER_HE9_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[9], idle, HETRIGGER_HE9_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[9], pressed, HETRIGGER_HE9_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[9], is_polarized, HETRIGGER_HE9_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[9], release, HETRIGGER_HE9_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[9], noise, HETRIGGER_HE9_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[9], rapidTrigger, HETRIGGER_HE9_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[10], action, HETRIGGER_HE10_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[10], active, HETRIGGER_HE10_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[10], idle, HETRIGGER_HE10_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[10], pressed, HETRIGGER_HE10_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[10], is_polarized, HETRIGGER_HE10_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[10], release, HETRIGGER_HE10_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[10], noise, HETRIGGER_HE10_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[10], rapidTrigger, HETRIGGER_HE10_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[11], action, HETRIGGER_HE11_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[11], active, HETRIGGER_HE11_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[11], idle, HETRIGGER_HE11_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[11], pressed, HETRIGGER_HE11_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[11], is_polarized, HETRIGGER_HE11_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[11], release, HETRIGGER_HE11_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[11], noise, HETRIGGER_HE11_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[11], rapidTrigger, HETRIGGER_HE11_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[12], action, HETRIGGER_HE12_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[12], active, HETRIGGER_HE12_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[12], idle, HETRIGGER_HE12_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[12], pressed, HETRIGGER_HE12_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[12], is_polarized, HETRIGGER_HE12_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[12], release, HETRIGGER_HE12_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[12], noise, HETRIGGER_HE12_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[12], rapidTrigger, HETRIGGER_HE12_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[13], action, HETRIGGER_HE13_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[13], active, HETRIGGER_HE13_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[13], idle, HETRIGGER_HE13_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[13], pressed, HETRIGGER_HE13_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[13], is_polarized, HETRIGGER_HE13_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[13], release, HETRIGGER_HE13_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[13], noise, HETRIGGER_HE13_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[13], rapidTrigger, HETRIGGER_HE13_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[14], action, HETRIGGER_HE14_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[14], active, HETRIGGER_HE14_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[14], idle, HETRIGGER_HE14_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[14], pressed, HETRIGGER_HE14_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[14], is_polarized, HETRIGGER_HE14_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[14], release, HETRIGGER_HE14_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[14], noise, HETRIGGER_HE14_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[14], rapidTrigger, HETRIGGER_HE14_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[15], action, HETRIGGER_HE15_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[15], active, HETRIGGER_HE15_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[15], idle, HETRIGGER_HE15_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[15], pressed, HETRIGGER_HE15_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[15], is_polarized, HETRIGGER_HE15_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[15], release, HETRIGGER_HE15_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[15], noise, HETRIGGER_HE15_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[15], rapidTrigger, HETRIGGER_HE15_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[16], action, HETRIGGER_HE16_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[16], active, HETRIGGER_HE16_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[16], idle, HETRIGGER_HE16_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[16], pressed, HETRIGGER_HE16_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[16], is_polarized, HETRIGGER_HE16_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[16], release, HETRIGGER_HE16_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[16], noise, HETRIGGER_HE16_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[16], rapidTrigger, HETRIGGER_HE16_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[17], action, HETRIGGER_HE17_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[17], active, HETRIGGER_HE17_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[17], idle, HETRIGGER_HE17_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[17], pressed, HETRIGGER_HE17_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[17], is_polarized, HETRIGGER_HE17_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[17], release, HETRIGGER_HE17_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[17], noise, HETRIGGER_HE17_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[17], rapidTrigger, HETRIGGER_HE17_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[18], action, HETRIGGER_HE18_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[18], active, HETRIGGER_HE18_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[18], idle, HETRIGGER_HE18_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[18], pressed, HETRIGGER_HE18_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[18], is_polarized, HETRIGGER_HE18_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[18], release, HETRIGGER_HE18_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[18], noise, HETRIGGER_HE18_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[18], rapidTrigger, HETRIGGER_HE18_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[19], action, HETRIGGER_HE19_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[19], active, HETRIGGER_HE19_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[19], idle, HETRIGGER_HE19_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[19], pressed, HETRIGGER_HE19_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[19], is_polarized, HETRIGGER_HE19_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[19], release, HETRIGGER_HE19_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[19], noise, HETRIGGER_HE19_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[19], rapidTrigger, HETRIGGER_HE19_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[20], action, HETRIGGER_HE20_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[20], active, HETRIGGER_HE20_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[20], idle, HETRIGGER_HE20_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[20], pressed, HETRIGGER_HE20_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[20], is_polarized, HETRIGGER_HE20_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[20], release, HETRIGGER_HE20_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[20], noise, HETRIGGER_HE20_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[20], rapidTrigger, HETRIGGER_HE20_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[21], action, HETRIGGER_HE21_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[21], active, HETRIGGER_HE21_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[21], idle, HETRIGGER_HE21_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[21], pressed, HETRIGGER_HE21_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[21], is_polarized, HETRIGGER_HE21_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[21], release, HETRIGGER_HE21_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[21], noise, HETRIGGER_HE21_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[21], rapidTrigger, HETRIGGER_HE21_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[22], action, HETRIGGER_HE22_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[22], active, HETRIGGER_HE22_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[22], idle, HETRIGGER_HE22_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[22], pressed, HETRIGGER_HE22_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[22], is_polarized, HETRIGGER_HE22_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[22], release, HETRIGGER_HE22_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[22], noise, HETRIGGER_HE22_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[22], rapidTrigger, HETRIGGER_HE22_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[23], action, HETRIGGER_HE23_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[23], active, HETRIGGER_HE23_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[23], idle, HETRIGGER_HE23_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[23], pressed, HETRIGGER_HE23_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[23], is_polarized, HETRIGGER_HE23_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[23], release, HETRIGGER_HE23_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[23], noise, HETRIGGER_HE23_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[23], rapidTrigger, HETRIGGER_HE23_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[24], action, HETRIGGER_HE24_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[24], active, HETRIGGER_HE24_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[24], idle, HETRIGGER_HE24_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[24], pressed, HETRIGGER_HE24_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[24], is_polarized, HETRIGGER_HE24_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[24], release, HETRIGGER_HE24_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[24], noise, HETRIGGER_HE24_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[24], rapidTrigger, HETRIGGER_HE24_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[25], action, HETRIGGER_HE25_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[25], active, HETRIGGER_HE25_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[25], idle, HETRIGGER_HE25_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[25], pressed, HETRIGGER_HE25_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[25], is_polarized, HETRIGGER_HE25_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[25], release, HETRIGGER_HE25_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[25], noise, HETRIGGER_HE25_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[25], rapidTrigger, HETRIGGER_HE25_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[26], action, HETRIGGER_HE26_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[26], active, HETRIGGER_HE26_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[26], idle, HETRIGGER_HE26_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[26], pressed, HETRIGGER_HE26_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[26], is_polarized, HETRIGGER_HE26_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[26], release, HETRIGGER_HE26_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[26], noise, HETRIGGER_HE26_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[26], rapidTrigger, HETRIGGER_HE26_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[27], action, HETRIGGER_HE27_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[27], active, HETRIGGER_HE27_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[27], idle, HETRIGGER_HE27_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[27], pressed, HETRIGGER_HE27_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[27], is_polarized, HETRIGGER_HE27_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[27], release, HETRIGGER_HE27_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[27], noise, HETRIGGER_HE27_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[27], rapidTrigger, HETRIGGER_HE27_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[28], action, HETRIGGER_HE28_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[28], active, HETRIGGER_HE28_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[28], idle, HETRIGGER_HE28_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[28], pressed, HETRIGGER_HE28_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[28], is_polarized, HETRIGGER_HE28_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[28], release, HETRIGGER_HE28_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[28], noise, HETRIGGER_HE28_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[28], rapidTrigger, HETRIGGER_HE28_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[29], action, HETRIGGER_HE29_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[29], active, HETRIGGER_HE29_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[29], idle, HETRIGGER_HE29_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[29], pressed, HETRIGGER_HE29_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[29], is_polarized, HETRIGGER_HE29_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[29], release, HETRIGGER_HE29_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[29], noise, HETRIGGER_HE29_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[29], rapidTrigger, HETRIGGER_HE29_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[30], action, HETRIGGER_HE30_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[30], active, HETRIGGER_HE30_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[30], idle, HETRIGGER_HE30_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[30], pressed, HETRIGGER_HE30_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[30], is_polarized, HETRIGGER_HE30_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[30], release, HETRIGGER_HE30_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[30], noise, HETRIGGER_HE30_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[30], rapidTrigger, HETRIGGER_HE30_RAPID);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[31], action, HETRIGGER_HE31_ACTION);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[31], active, HETRIGGER_HE31_ACTIVE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[31], idle, HETRIGGER_HE31_IDLE);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[31], pressed, HETRIGGER_HE31_PRESSED);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[31], is_polarized, HETRIGGER_HE31_POLARITY);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[31], release, HETRIGGER_HE31_RELEASE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[31], noise, HETRIGGER_HE31_NOISE);
-    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[31], rapidTrigger, HETRIGGER_HE31_RAPID);
+
+    // Travel-based settings share one default across every channel
+    for (uint16_t he = 0; he < HETRIGGER_COUNT; he++) {
+        INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[he], actuationPoint, HETRIGGER_DEFAULT_ACTUATION);
+        INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[he], deactuationPoint, HETRIGGER_DEFAULT_DEACTUATION);
+        INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[he], rtMode, HETRIGGER_DEFAULT_RT_MODE);
+        INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[he], rtPressSensitivity, HETRIGGER_DEFAULT_RT_PRESS_SENS);
+        INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[he], rtReleaseSensitivity, HETRIGGER_DEFAULT_RT_RELEASE_SENS);
+        INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[he], socdPartner, HETRIGGER_DEFAULT_SOCD_PARTNER);
+    }
+    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions, noiseFloor, HETRIGGER_NOISE_FLOOR);
+    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions, analogDeadzone, HETRIGGER_ANALOG_DEADZONE);
+    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions, analogCurve, HETRIGGER_ANALOG_CURVE);
+    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions, muxSettleMicros, HETRIGGER_MUX_SETTLE_US);
+    INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions, analogProportional, !!HETRIGGER_ANALOG_PROPORTIONAL);
 
     // reminder that this must be set or else nanopb won't retain anything
     config.addonOptions.heTriggerOptions.triggers_count = HETRIGGER_COUNT;
@@ -1824,6 +1698,60 @@ void migrateMacroPinsToGpio(Config& config) {
 // populate existing configurations' buttonsMask and auxMask to mirror behavior
 // from the behavior before this code merged. totally new configs get their
 // board defaults via initUnsetPropertiesWithDefaults
+// Hall effect thresholds used to be raw ADC counts, which meant every channel
+// needed its own numbers. Convert them once into travel percent using the idle
+// and pressed values the user already calibrated.
+//
+// This has to run before initUnsetPropertiesWithDefaults, because that sets
+// has_active on every channel and we would no longer be able to tell a stored
+// threshold from a default one.
+void heTriggerThresholdsMigration(Config& config)
+{
+    HETriggerOptions& options = config.addonOptions.heTriggerOptions;
+
+    for (uint16_t he = 0; he < options.triggers_count; he++) {
+        HETriggerInfo& trigger = options.triggers[he];
+        if (!trigger.has_idle || !trigger.has_pressed || !trigger.has_active)
+            continue;
+
+        // A sensor flagged as polarized reads high at rest. Fold that into the
+        // calibration so the span carries the direction from here on.
+        if (trigger.has_is_polarized && trigger.is_polarized && trigger.pressed > trigger.idle) {
+            const int32_t idle = trigger.idle;
+            trigger.idle = trigger.pressed;
+            trigger.pressed = idle;
+        }
+
+        const int32_t scaleQ10 = heTravelScaleQ10(trigger.idle, trigger.pressed);
+        if (scaleQ10 == 0)
+            continue;
+
+        INIT_UNSET_PROPERTY(trigger, actuationPoint, heTravelFromRaw(trigger.active, trigger.idle, scaleQ10));
+        // A release threshold equal to the actuation point is not a separate
+        // deactuation point, it is the absence of one.
+        if (trigger.has_release && trigger.release != trigger.active) {
+            INIT_UNSET_PROPERTY(trigger, deactuationPoint, heTravelFromRaw(trigger.release, trigger.idle, scaleQ10));
+        }
+        if (trigger.has_rapidTrigger && trigger.rapidTrigger) {
+            INIT_UNSET_PROPERTY(trigger, rtMode, HERapidTriggerMode::HE_RT_NORMAL);
+        }
+        // The noise band was per channel but describes the sensor, not the key,
+        // so the first calibrated channel sets the board-wide floor. It is the
+        // lower bound on both rapid trigger sensitivities, so a wide band over a
+        // narrow span has to be capped or rapid trigger could never fire.
+        if (trigger.has_noise) {
+            const int32_t span = trigger.pressed - trigger.idle;
+            const int32_t magnitude = (span < 0) ? -span : span;
+            int32_t noiseFloor = (trigger.noise * HETRIGGER_TRAVEL_MAX) / magnitude;
+            if (noiseFloor > HETRIGGER_NOISE_FLOOR_MAX)
+                noiseFloor = HETRIGGER_NOISE_FLOOR_MAX;
+            INIT_UNSET_PROPERTY(options, noiseFloor, (uint16_t)noiseFloor);
+        }
+    }
+
+    config.migrations.heTriggerThresholdsMigrated = true;
+}
+
 void hotkeysMigration(Config& config)
 {
     HotkeyOptions& hotkeys = config.hotkeyOptions;
@@ -1957,6 +1885,9 @@ void ConfigUtils::load(Config& config)
     // run migrations
     if (!config.migrations.hotkeysMigrated)
         hotkeysMigration(config);
+
+    if (!config.migrations.heTriggerThresholdsMigrated)
+        heTriggerThresholdsMigration(config);
 
     // Make sure that fields that were not deserialized are properly initialized.
     // They were probably added with a newer version of the firmware.
@@ -2133,8 +2064,10 @@ static void __attribute__((noinline)) appendAsString(std::string& str, uint32_t 
 #define TO_JSON_UENUM(fieldname, submessageType) appendAsString(str, static_cast<uint32_t>(s.fieldname));
 #define TO_JSON_DOUBLE(fieldname, submessageType) appendAsString(str, static_cast<double>(s.fieldname));
 #define TO_JSON_FLOAT(fieldname, submessageType) appendAsString(str, static_cast<float>(s.fieldname));
-#define TO_JSON_INT32(fieldname, submessageType) appendAsString(str, s.fieldname);
-#define TO_JSON_UINT32(fieldname, submessageType) appendAsString(str, s.fieldname);
+// Cast rather than relying on the field type, so that fields declared with a
+// narrower nanopb int_size still pick an overload.
+#define TO_JSON_INT32(fieldname, submessageType) appendAsString(str, static_cast<int32_t>(s.fieldname));
+#define TO_JSON_UINT32(fieldname, submessageType) appendAsString(str, static_cast<uint32_t>(s.fieldname));
 #define TO_JSON_BOOL(fieldname, submessageType) str.append((s.fieldname) ? "true" : "false");
 #define TO_JSON_STRING(fieldname, submessageType) str.push_back('"'); str.append(s.fieldname); str.push_back('"');
 #define TO_JSON_BYTES(fieldname, submessageType) str.push_back('"'); str.append(Base64::Encode(reinterpret_cast<const char*>(s.fieldname.bytes), s.fieldname.size)); str.push_back('"');
@@ -2144,8 +2077,8 @@ static void __attribute__((noinline)) appendAsString(std::string& str, uint32_t 
 #define TO_JSON_REPEATED_UENUM(fieldname, submessageType) appendAsString(str, static_cast<uint32_t>(s.fieldname[i]));
 #define TO_JSON_REPEATED_DOUBLE(fieldname, submessageType) appendAsString(str, static_cast<double>(s.fieldname[i]));
 #define TO_JSON_REPEATED_FLOAT(fieldname, submessageType) appendAsString(str, static_cast<float>(s.fieldname[i]));
-#define TO_JSON_REPEATED_INT32(fieldname, submessageType) appendAsString(str, s.fieldname[i]);
-#define TO_JSON_REPEATED_UINT32(fieldname, submessageType) appendAsString(str, s.fieldname[i]);
+#define TO_JSON_REPEATED_INT32(fieldname, submessageType) appendAsString(str, static_cast<int32_t>(s.fieldname[i]));
+#define TO_JSON_REPEATED_UINT32(fieldname, submessageType) appendAsString(str, static_cast<uint32_t>(s.fieldname[i]));
 #define TO_JSON_REPEATED_BOOL(fieldname, submessageType) str.append((s.fieldname[i]) ? "true" : "false");
 #define TO_JSON_REPEATED_STRING(fieldname, submessageType) str.push_back('"'); str.append(s.fieldname[i]); str.push_back('"');
 #define TO_JSON_REPEATED_BYTES(fieldname, submessageType) static_assert(false, "not supported");
@@ -2326,12 +2259,25 @@ static bool fromJsonFloat(JsonObjectConst jsonObject, const char* fieldname, flo
 
 #define FROM_JSON_FLOAT(fieldname, submessageType) if (!fromJsonFloat(jsonObject, #fieldname, configStruct.fieldname, configStruct.PREPROCESSOR_JOIN(has_, fieldname))) { return false; }
 
-static bool fromJsonInt32(JsonObjectConst jsonObject, const char* fieldname, int32_t& value, bool& flag)
+// A value that does not fit the field's declared width is a malformed document,
+// not something to silently truncate. This matters for fields declared with a
+// narrower nanopb int_size.
+template <typename T>
+static bool fitsField(int64_t value)
+{
+    return value >= (int64_t)std::numeric_limits<T>::min() &&
+           value <= (int64_t)std::numeric_limits<T>::max();
+}
+
+// Templated on the field type so that fields declared with a narrower nanopb
+// int_size bind here too.
+template <typename T>
+static bool fromJsonInt32(JsonObjectConst jsonObject, const char* fieldname, T& value, bool& flag)
 {
     if (jsonObject.containsKey(fieldname))
     {
         JsonVariantConst jsonVariant = jsonObject[fieldname];
-        if (jsonVariant.is<int>())
+        if (jsonVariant.is<int>() && fitsField<T>(jsonVariant.as<int>()))
         {
             value = jsonVariant.as<int>();
             flag = true;
@@ -2348,12 +2294,13 @@ static bool fromJsonInt32(JsonObjectConst jsonObject, const char* fieldname, int
 
 #define FROM_JSON_INT32(fieldname, submessageType) if (!fromJsonInt32(jsonObject, #fieldname, configStruct.fieldname, configStruct.PREPROCESSOR_JOIN(has_, fieldname))) { return false; }
 
-static bool fromJsonUint32(JsonObjectConst jsonObject, const char* fieldname, uint32_t& value, bool& flag)
+template <typename T>
+static bool fromJsonUint32(JsonObjectConst jsonObject, const char* fieldname, T& value, bool& flag)
 {
     if (jsonObject.containsKey(fieldname))
     {
         JsonVariantConst jsonVariant = jsonObject[fieldname];
-        if (jsonVariant.is<unsigned int>())
+        if (jsonVariant.is<unsigned int>() && fitsField<T>(jsonVariant.as<unsigned int>()))
         {
             value = jsonVariant.as<unsigned int>();
             flag = true;
@@ -2486,7 +2433,8 @@ static bool fromJsonBytes(JsonObjectConst jsonObject, const char* fieldname, uin
     configStruct.fieldname ## _count = 0; \
     for (size_t index = 0; index < array.size(); ++index) \
     { \
-        if (!array[index].is<int>()) \
+        if (!array[index].is<int>() || \
+                !fitsField<decltype(configStruct.fieldname[index])>(array[index].as<int>())) \
         { \
             return false; \
         } \
@@ -2498,7 +2446,8 @@ static bool fromJsonBytes(JsonObjectConst jsonObject, const char* fieldname, uin
     configStruct.fieldname ## _count = 0; \
     for (size_t index = 0; index < array.size(); ++index) \
     { \
-        if (!array[index].is<unsigned int>()) \
+        if (!array[index].is<unsigned int>() || \
+                !fitsField<decltype(configStruct.fieldname[index])>(array[index].as<unsigned int>())) \
         { \
             return false; \
         } \
@@ -2606,6 +2555,11 @@ bool ConfigUtils::fromJSON(Config& config, const char* data, size_t dataLen)
     {
         return false;
     }
+
+    // a backup taken before travel percent existed still carries raw thresholds,
+    // and this has to convert them before defaults hide the fact
+    if (!config.migrations.heTriggerThresholdsMigrated)
+        heTriggerThresholdsMigration(config);
 
     initUnsetPropertiesWithDefaults(config);
 

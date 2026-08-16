@@ -34,6 +34,7 @@
 #include "lwip/apps/httpd.h"
 #include "lwip/def.h"
 #include "lwip/mem.h"
+#include "addons/he_trigger.h"
 #include "addons/input_macro.h"
 
 #define PATH_CGI_ACTION "/cgi/action"
@@ -552,6 +553,52 @@ std::string setSplashImage()
     return serialize_json(doc);
 }
 
+// Read a travel value from the web configurator, clamped to 0-1000 tenths of a
+// percent. A missing key leaves the stored value alone, which is what lets a
+// backup taken before travel percent existed restore without zeroing thresholds.
+static void readTravel(uint16_t& value, JsonObject doc, const char* key)
+{
+    if (doc[key] == nullptr) return;
+
+    const int32_t raw = doc[key];
+    if (raw < 0) value = 0;
+    else if (raw > HETRIGGER_TRAVEL_MAX) value = HETRIGGER_TRAVEL_MAX;
+    else value = (uint16_t)raw;
+}
+
+// Per-profile hall effect overrides. Shared by the profile and pin mapping APIs
+// so the two cannot drift apart.
+static void readHEProfileSettings(HEProfileSettings& settings, JsonObject doc)
+{
+    if (doc["heEnabled"] != nullptr) {
+        settings.enabled = doc["heEnabled"];
+    }
+    // An actuation point of zero would be satisfied by a key at rest, so it is
+    // rejected rather than stored
+    if (doc["heActuationPoint"] > 0) {
+        readTravel(settings.actuationPoint, doc, "heActuationPoint");
+    }
+    readTravel(settings.deactuationPoint, doc, "heDeactuationPoint");
+    readTravel(settings.rtPressSensitivity, doc, "heRtPressSensitivity");
+    readTravel(settings.rtReleaseSensitivity, doc, "heRtReleaseSensitivity");
+    if (doc["heRtMode"] != nullptr) {
+        const int32_t rtMode = doc["heRtMode"];
+        if (rtMode >= HERapidTriggerMode::HE_RT_OFF && rtMode <= HERapidTriggerMode::HE_RT_CONTINUOUS) {
+            settings.rtMode = (HERapidTriggerMode)rtMode;
+        }
+    }
+}
+
+static void writeHEProfileSettings(JsonObject doc, const HEProfileSettings& settings)
+{
+    doc["heEnabled"] = settings.enabled;
+    doc["heActuationPoint"] = settings.actuationPoint;
+    doc["heDeactuationPoint"] = settings.deactuationPoint;
+    doc["heRtMode"] = (int)settings.rtMode;
+    doc["heRtPressSensitivity"] = settings.rtPressSensitivity;
+    doc["heRtReleaseSensitivity"] = settings.rtReleaseSensitivity;
+}
+
 std::string setProfileOptions()
 {
     DynamicJsonDocument doc = get_post_data();
@@ -596,6 +643,7 @@ std::string setProfileOptions()
                 profileOptions.gpioMappingsSets[altsIndex].settings.socdMode = (SOCDMode)socdMode;
             }
         }
+        readHEProfileSettings(profileOptions.gpioMappingsSets[altsIndex].settings.heSettings, alt);
 
         profileOptions.gpioMappingsSets_count = ++altsIndex;
         if (altsIndex > 4) break;
@@ -607,7 +655,8 @@ std::string setProfileOptions()
 
 std::string getProfileOptions()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(700);
+    // 5 profiles of 30 pins plus the per-profile SOCD and hall effect settings
+    const size_t capacity = JSON_OBJECT_SIZE(740);
     DynamicJsonDocument doc(capacity);
 
     const auto writePinDoc = [&](const int item, const char* key, const GpioMappingInfo& value) -> void
@@ -662,6 +711,7 @@ std::string getProfileOptions()
         doc["alternativePinMappings"][i]["enabled"] = profileOptions.gpioMappingsSets[i].enabled;
         doc["alternativePinMappings"][i]["socdEnabled"] = profileOptions.gpioMappingsSets[i].settings.socdEnabled;
         doc["alternativePinMappings"][i]["socdMode"] = (int)profileOptions.gpioMappingsSets[i].settings.socdMode;
+        writeHEProfileSettings(doc["alternativePinMappings"][i], profileOptions.gpioMappingsSets[i].settings.heSettings);
     }
 
     return serialize_json(doc);
@@ -1159,6 +1209,7 @@ std::string setPinMappings()
             gpioMappings.settings.socdMode = (SOCDMode)socdMode;
         }
     }
+    readHEProfileSettings(gpioMappings.settings.heSettings, doc.as<JsonObject>());
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 
@@ -1167,7 +1218,7 @@ std::string setPinMappings()
 
 std::string getPinMappings()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    const size_t capacity = JSON_OBJECT_SIZE(510);
     DynamicJsonDocument doc(capacity);
 
     GpioMappings& gpioMappings = Storage::getInstance().getGpioMappings();
@@ -1214,6 +1265,7 @@ std::string getPinMappings()
     doc["enabled"] = gpioMappings.enabled;
     doc["socdEnabled"] = gpioMappings.settings.socdEnabled;
     doc["socdMode"] = (int)gpioMappings.settings.socdMode;
+    writeHEProfileSettings(doc.as<JsonObject>(), gpioMappings.settings.heSettings);
 
     return serialize_json(doc);
 }
@@ -1667,7 +1719,8 @@ std::string getHETriggerVoltage()
 
 std::string getHETriggerCalibrations()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    // 32 channels of 9 members, plus the array slots
+    const size_t capacity = JSON_OBJECT_SIZE(600);
     DynamicJsonDocument doc(capacity);
 
     HETriggerInfo * heTriggers = Storage::getInstance().getAddonOptions().heTriggerOptions.triggers;
@@ -1677,12 +1730,13 @@ std::string getHETriggerCalibrations()
         JsonObject trigger = triggerList.createNestedObject();
         trigger["action"] = heTriggers[i].action;
         trigger["idle"] = heTriggers[i].idle;
-        trigger["active"] = heTriggers[i].active;
         trigger["pressed"] = heTriggers[i].pressed;
-        trigger["is_polarized"] = heTriggers[i].is_polarized;
-        trigger["release"] = heTriggers[i].release;
-        trigger["noise"] = heTriggers[i].noise;
-        trigger["rapidTrigger"] = heTriggers[i].rapidTrigger;
+        trigger["actuationPoint"] = heTriggers[i].actuationPoint;
+        trigger["deactuationPoint"] = heTriggers[i].deactuationPoint;
+        trigger["rtMode"] = heTriggers[i].rtMode;
+        trigger["rtPressSensitivity"] = heTriggers[i].rtPressSensitivity;
+        trigger["rtReleaseSensitivity"] = heTriggers[i].rtReleaseSensitivity;
+        trigger["socdPartner"] = heTriggers[i].socdPartner;
     }
 
     return serialize_json(doc);
@@ -1694,19 +1748,114 @@ std::string setHETriggerCalibrations()
     DynamicJsonDocument doc = get_post_data();
     HETriggerInfo * heTriggers = Storage::getInstance().getAddonOptions().heTriggerOptions.triggers;
 
+    // Every field is presence guarded, so restoring a backup taken before travel
+    // percent existed leaves the migrated thresholds alone instead of zeroing
+    // them, which would leave every channel actuating at rest.
     for(int i = 0; i < 32; i++) {
-        heTriggers[i].action = doc["triggers"][i]["action"];
-        heTriggers[i].idle = doc["triggers"][i]["idle"];
-        heTriggers[i].active = doc["triggers"][i]["active"];
-        heTriggers[i].pressed = doc["triggers"][i]["pressed"];
-        heTriggers[i].is_polarized = doc["triggers"][i]["is_polarized"];
-        heTriggers[i].release = doc["triggers"][i]["release"];
-        heTriggers[i].noise = doc["triggers"][i]["noise"];
-        heTriggers[i].rapidTrigger = doc["triggers"][i]["rapidTrigger"];
+        JsonObject trigger = doc["triggers"][i];
+        if (trigger.isNull())
+            continue;
+
+        if (trigger["action"] != nullptr) {
+            heTriggers[i].action = trigger["action"];
+        }
+        if (trigger["idle"] != nullptr) {
+            heTriggers[i].idle = trigger["idle"];
+        }
+        if (trigger["pressed"] != nullptr) {
+            heTriggers[i].pressed = trigger["pressed"];
+        }
+        // An actuation point of zero would be satisfied by a key at rest
+        if (trigger["actuationPoint"] > 0) {
+            readTravel(heTriggers[i].actuationPoint, trigger, "actuationPoint");
+        }
+        readTravel(heTriggers[i].deactuationPoint, trigger, "deactuationPoint");
+        readTravel(heTriggers[i].rtPressSensitivity, trigger, "rtPressSensitivity");
+        readTravel(heTriggers[i].rtReleaseSensitivity, trigger, "rtReleaseSensitivity");
+        if (trigger["rtMode"] != nullptr) {
+            const int32_t rtMode = trigger["rtMode"];
+            if (rtMode >= HERapidTriggerMode::HE_RT_OFF && rtMode <= HERapidTriggerMode::HE_RT_CONTINUOUS) {
+                heTriggers[i].rtMode = (HERapidTriggerMode)rtMode;
+            }
+        }
+        // 0 is no partner, otherwise the partner channel index plus one
+        if (trigger["socdPartner"] != nullptr) {
+            const int32_t socdPartner = trigger["socdPartner"];
+            if (socdPartner >= 0 && socdPartner <= HETRIGGER_COUNT) {
+                heTriggers[i].socdPartner = (uint16_t)socdPartner;
+            }
+        }
     }
 
     Storage::getInstance().getAddonOptions().heTriggerOptions.triggers_count = 32;
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+
+    return serialize_json(doc);
+}
+
+// Live travel for the web configurator, as tenths of a percent per channel.
+//
+// The add-on cannot supply this: the main loop skips PreprocessAddons entirely
+// while the web configurator is up (src/gp2040.cpp), so nothing would ever
+// refresh. Nothing else owns the ADC in config mode, so this samples the
+// channels itself, using the saved pin configuration rather than the temporary
+// one that setHETriggerOptions programs for the calibration modal.
+std::string getHETriggerState()
+{
+    const size_t capacity = JSON_OBJECT_SIZE(100);
+    DynamicJsonDocument doc(capacity);
+
+    const HETriggerOptions& options = Storage::getInstance().getAddonOptions().heTriggerOptions;
+    JsonArray travelList = doc.createNestedArray("travel");
+
+    if (options.muxChannels < 1) {
+        doc["error"] = "mux channels incorrect";
+        return serialize_json(doc);
+    }
+
+    const Pin_t adcPins[4] = { (Pin_t)options.muxADCPin0, (Pin_t)options.muxADCPin1,
+                               (Pin_t)options.muxADCPin2, (Pin_t)options.muxADCPin3 };
+    const Pin_t selectPins[4] = { (Pin_t)options.selectPin0, (Pin_t)options.selectPin1,
+                                  (Pin_t)options.selectPin2, (Pin_t)options.selectPin3 };
+    int selectCount = 0;
+    switch (options.muxChannels) {
+        case 4: selectCount = 2; break;
+        case 8: selectCount = 3; break;
+        case 16: selectCount = 4; break;
+        default: selectCount = 0; break;
+    }
+
+    for (int i = 0; i < 4; i++) {
+        if (adcPins[i] >= 26 && adcPins[i] <= 29) adc_gpio_init(adcPins[i]);
+    }
+    for (int i = 0; i < selectCount; i++) {
+        if (selectPins[i] >= 0 && selectPins[i] <= 29) {
+            gpio_init(selectPins[i]);
+            gpio_set_dir(selectPins[i], GPIO_OUT);
+        }
+    }
+
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        const HETriggerInfo& trigger = options.triggers[he];
+        const uint32_t mux = he / options.muxChannels;
+        const int32_t scaleQ10 = heTravelScaleQ10(trigger.idle, trigger.pressed);
+
+        if (mux > 3 || adcPins[mux] < 26 || adcPins[mux] > 29 || scaleQ10 == 0) {
+            travelList.add(0);
+            continue;
+        }
+
+        const uint32_t channel = he % options.muxChannels;
+        for (int i = 0; i < selectCount; i++) {
+            if (selectPins[i] >= 0 && selectPins[i] <= 29) {
+                gpio_put(selectPins[i], (channel >> i) & 0x01);
+            }
+        }
+        adc_select_input(adcPins[mux] - 26);
+        busy_wait_us(options.muxSettleMicros);
+
+        travelList.add(heTravelFromRaw(adc_read(), trigger.idle, scaleQ10));
+    }
 
     return serialize_json(doc);
 }
@@ -1960,6 +2109,11 @@ std::string setAddonOptions()
     docToPin(heTriggerOptions.muxADCPin3, doc, "muxADCPin3");
     docToValue(heTriggerOptions.emaSmoothing, doc, "heTriggerSmoothing");
     docToValue(heTriggerOptions.smoothingFactor, doc, "heTriggerSmoothingFactor");
+    docToValue(heTriggerOptions.noiseFloor, doc, "heTriggerNoiseFloor");
+    docToValue(heTriggerOptions.analogDeadzone, doc, "heTriggerAnalogDeadzone");
+    docToValue(heTriggerOptions.analogCurve, doc, "heTriggerAnalogCurve");
+    docToValue(heTriggerOptions.muxSettleMicros, doc, "heTriggerMuxSettleMicros");
+    docToValue(heTriggerOptions.analogProportional, doc, "heTriggerAnalogProportional");
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 
@@ -2418,6 +2572,11 @@ std::string getAddonOptions()
     writeDoc(doc, "muxADCPin3", cleanPin(heTriggerOptions.muxADCPin3));
     writeDoc(doc, "heTriggerSmoothing", heTriggerOptions.emaSmoothing);
     writeDoc(doc, "heTriggerSmoothingFactor", heTriggerOptions.smoothingFactor);
+    writeDoc(doc, "heTriggerNoiseFloor", heTriggerOptions.noiseFloor);
+    writeDoc(doc, "heTriggerAnalogDeadzone", heTriggerOptions.analogDeadzone);
+    writeDoc(doc, "heTriggerAnalogCurve", heTriggerOptions.analogCurve);
+    writeDoc(doc, "heTriggerMuxSettleMicros", heTriggerOptions.muxSettleMicros);
+    writeDoc(doc, "heTriggerAnalogProportional", heTriggerOptions.analogProportional);
 
     return serialize_json(doc);
 }
@@ -2768,6 +2927,7 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setHETriggerCalibrations", setHETriggerCalibrations },
     { "/api/getHETriggerCalibrations", getHETriggerCalibrations },
     { "/api/getHETriggerVoltage", getHETriggerVoltage },
+    { "/api/getHETriggerState", getHETriggerState },
     { "/api/setHETriggerOptions", setHETriggerOptions },
     { "/api/setReactiveLEDs", setReactiveLEDs },
     { "/api/getReactiveLEDs", getReactiveLEDs },

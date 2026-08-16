@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from 'react';
-import { Alert, Button, FormCheck, Row, Table } from 'react-bootstrap';
+import { Alert, Button, FormCheck, ProgressBar, Row, Table } from 'react-bootstrap';
 
 import { FormikErrors } from 'formik';
 
@@ -10,7 +10,12 @@ import omit from 'lodash/omit';
 
 import HECalibration from '../Components/HECalibration';
 
-import useHETriggerStore, { Trigger } from '../Store/useHETriggerStore';
+import useHETriggerStore, {
+	Trigger,
+	TRAVEL_MAX,
+	formatTravel,
+} from '../Store/useHETriggerStore';
+import WebApi from '../Services/WebApi';
 
 import { AppContext } from '../Contexts/AppContext';
 import Section from '../Components/Section';
@@ -26,15 +31,18 @@ import './HETrigger.scss';
 
 import {
 	BUTTON_ACTIONS,
+	HE_ONLY_ACTIONS,
 	//	NON_SELECTABLE_BUTTON_ACTIONS,
 	PinActionValues,
 } from '../Data/Pins';
 
-// Only provide gamepad inputs for now
+// Only provide gamepad inputs for now, plus the analog trigger actions that
+// only this add-on can drive.
 const SELECTABLE_BUTTON_ACTIONS = [
 	-10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
 	41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 59, 60, 61, 62,
-	63, 64, 65, 66, 72, 73, 74, 75, 76, 77, 78
+	63, 64, 65, 66, 72, 73, 74, 75, 76, 77, 78,
+	...HE_ONLY_ACTIONS,
 ];
 
 const getOption = (e, actionId) => {
@@ -46,6 +54,11 @@ const getOption = (e, actionId) => {
 
 const isSelectable = (value) =>
 	SELECTABLE_BUTTON_ACTIONS.includes(value);
+
+// index == HERapidTriggerMode
+const RT_MODE_KEYS = ['rapid-trigger-off', 'rapid-trigger-normal', 'rapid-trigger-continuous'];
+
+const LIVE_POLL_MS = 100;
 
 export const HETriggerScheme = {
 	HETriggerEnabled: yup.number().required().label('Hall Effect Triggers Enabled'),
@@ -93,6 +106,26 @@ export const HETriggerScheme = {
 		.number()
 		.label('EMA Smoothing Factor')
 		.validateRangeWhenValue('HETriggerEnabled', 1, 99),
+	heTriggerNoiseFloor: yup
+		.number()
+		.label('Noise Floor')
+		.validateRangeWhenValue('HETriggerEnabled', 0, 1000),
+	heTriggerAnalogDeadzone: yup
+		.number()
+		.label('Analog Deadzone')
+		.validateRangeWhenValue('HETriggerEnabled', 0, 1000),
+	heTriggerAnalogCurve: yup
+		.number()
+		.label('Analog Response Curve')
+		.validateRangeWhenValue('HETriggerEnabled', 0, 2),
+	heTriggerMuxSettleMicros: yup
+		.number()
+		.label('Multiplexer Settle Time')
+		.validateRangeWhenValue('HETriggerEnabled', 0, 255),
+	heTriggerAnalogProportional: yup
+		.number()
+		.label('Proportional Stick Output')
+		.validateRangeWhenValue('HETriggerEnabled', 0, 1),
 };
 
 export const HETriggerState = {
@@ -108,6 +141,11 @@ export const HETriggerState = {
 	muxSelectPin3: -1,
 	heTriggerSmoothing: 0,
 	heTriggerSmoothingFactor: 5,
+	heTriggerNoiseFloor: 10,
+	heTriggerAnalogDeadzone: 50,
+	heTriggerAnalogCurve: 0,
+	heTriggerMuxSettleMicros: 3,
+	heTriggerAnalogProportional: 0,
 };
 
 const options = Object.entries(BUTTON_ACTIONS)
@@ -151,6 +189,26 @@ const TriggerActionsForm = ({
 	const CURRENT_BUTTONS = getButtonLabels(buttonLabelType, swapTpShareLabels);
 	const buttonNames = omit(CURRENT_BUTTONS, ['label', 'value']);
 	const { t } = useTranslation('');
+	const [liveTravel, setLiveTravel] = useState<number[]>([]);
+
+	// Sample travel only while the table is on screen.
+	useEffect(() => {
+		if (!showVoltTable) return;
+
+		let cancelled = false;
+		const poll = async () => {
+			const state = await WebApi.getHETriggerState();
+			if (cancelled || !state) return;
+			setLiveTravel(state.travel || []);
+		};
+
+		poll();
+		const timer = setInterval(poll, LIVE_POLL_MS);
+		return () => {
+			cancelled = true;
+			clearInterval(timer);
+		};
+	}, [showVoltTable]);
 
 	const handleSave = async (e) => {
 		e.preventDefault();
@@ -282,12 +340,14 @@ const TriggerActionsForm = ({
 										<tr>
 											<th>{t('HETrigger:channel-label')}</th>
 											<th>{t('HETrigger:voltage-table-idle-text')}</th>
-											<th>{t('HETrigger:voltage-table-trigger-text')}</th>
 											<th>{t('HETrigger:voltage-table-pressed-text')}</th>
-											<th>{t('HETrigger:voltage-table-polarity-text')}</th>
-											<th>{t('HETrigger:voltage-table-rapid-trigger-text')}</th>
-											<th>{t('HETrigger:voltage-table-release-text')}</th>
-											<th>{t('HETrigger:voltage-table-noise-text')}</th>
+											<th>{t('HETrigger:table-actuation-text')}</th>
+											<th>{t('HETrigger:table-deactuation-text')}</th>
+											<th>{t('HETrigger:table-rapid-trigger-text')}</th>
+											<th>{t('HETrigger:table-press-sensitivity-text')}</th>
+											<th>{t('HETrigger:table-release-sensitivity-text')}</th>
+											<th>{t('HETrigger:table-socd-partner-text')}</th>
+											<th>{t('HETrigger:table-live-travel-text')}</th>
 										</tr>
 									</thead>
 									<tbody>
@@ -297,12 +357,26 @@ const TriggerActionsForm = ({
 										>
 											<td>{index} {triggers[key].action===-10?t('HETrigger:voltage-table-disabled-label'):''}</td>
 											<td>{triggers[key].idle}</td>
-											<td>{triggers[key].active}</td>
 											<td>{triggers[key].pressed}</td>
-											<td>{triggers[key].is_polarized ? 'S' : 'N'}</td>
-											<td>{triggers[key].rapidTrigger ? 'Enabled' : 'Disabled'}</td>
-											<td>{triggers[key].rapidTrigger ? triggers[key].release : 'N/A'}</td>
-											<td>{triggers[key].rapidTrigger ? triggers[key].noise : 'N/A'}</td>
+											<td>{formatTravel(triggers[key].actuationPoint)}</td>
+											<td>{formatTravel(triggers[key].deactuationPoint || triggers[key].actuationPoint)}</td>
+											<td>{t(`HETrigger:${RT_MODE_KEYS[triggers[key].rtMode] || RT_MODE_KEYS[0]}`)}</td>
+											<td>{triggers[key].rtMode ? formatTravel(triggers[key].rtPressSensitivity) : 'N/A'}</td>
+											<td>{triggers[key].rtMode ? formatTravel(triggers[key].rtReleaseSensitivity || triggers[key].rtPressSensitivity) : 'N/A'}</td>
+											<td>{triggers[key].socdPartner ? triggers[key].socdPartner - 1 : '—'}</td>
+											<td>
+												<ProgressBar
+													now={liveTravel[parseInt(key)] || 0}
+													max={TRAVEL_MAX}
+													variant={
+														(liveTravel[parseInt(key)] || 0) >= triggers[key].actuationPoint
+															? 'success'
+															: 'info'
+													}
+													label={formatTravel(liveTravel[parseInt(key)] || 0)}
+													style={{ minWidth: '5rem' }}
+												/>
+											</td>
 										</tr>
 									))}
 									</tbody>
@@ -331,6 +405,12 @@ const HETrigger = ({ values, errors, handleChange, handleCheckbox }: AddonPropTy
 		4: t('HETrigger:4-channels'),
 		8: t('HETrigger:8-channels'),
 		16: t('HETrigger:16-channels'),
+	};
+
+	const CURVE_SELECT = {
+		0: t('HETrigger:analog-curve-linear'),
+		1: t('HETrigger:analog-curve-exponential'),
+		2: t('HETrigger:analog-curve-s'),
 	};
 
 	const { usedPins } = useContext(AppContext);
@@ -520,6 +600,77 @@ const HETrigger = ({ values, errors, handleChange, handleCheckbox }: AddonPropTy
 						min={1}
 						max={99}
 					/>
+				</Row>
+				<Row className="mb-3">
+					<FormControl
+						type="number"
+						label={t('HETrigger:noise-floor-label')}
+						name="heTriggerNoiseFloor"
+						className="form-control-sm"
+						groupClassName="col-sm-2 mb-3"
+						value={values.heTriggerNoiseFloor}
+						error={errors.heTriggerNoiseFloor}
+						isInvalid={Boolean(errors.heTriggerNoiseFloor)}
+						onChange={handleChange}
+						min={0}
+						max={1000}
+					/>
+					<FormControl
+						type="number"
+						label={t('HETrigger:mux-settle-label')}
+						name="heTriggerMuxSettleMicros"
+						className="form-control-sm"
+						groupClassName="col-sm-2 mb-3"
+						value={values.heTriggerMuxSettleMicros}
+						error={errors.heTriggerMuxSettleMicros}
+						isInvalid={Boolean(errors.heTriggerMuxSettleMicros)}
+						onChange={handleChange}
+						min={0}
+						max={255}
+					/>
+				</Row>
+				<Row className="mb-3">
+					<FormCheck
+						label={t('HETrigger:analog-proportional-label')}
+						type="switch"
+						id="HETriggerAnalogProportionalButton"
+						className="col-sm-3 mt-auto mb-auto ms-3"
+						isInvalid={false}
+						checked={Boolean(values.heTriggerAnalogProportional)}
+						onChange={(e) => {
+							handleCheckbox('heTriggerAnalogProportional');
+							handleChange(e);
+						}}
+					/>
+					<FormControl
+						type="number"
+						label={t('HETrigger:analog-deadzone-label')}
+						name="heTriggerAnalogDeadzone"
+						className="form-control-sm"
+						groupClassName="col-sm-2 mb-3"
+						value={values.heTriggerAnalogDeadzone}
+						error={errors.heTriggerAnalogDeadzone}
+						isInvalid={Boolean(errors.heTriggerAnalogDeadzone)}
+						onChange={handleChange}
+						min={0}
+						max={1000}
+					/>
+					<FormSelect
+						label={t('HETrigger:analog-curve-label')}
+						name="heTriggerAnalogCurve"
+						className="form-select-sm"
+						groupClassName="col-sm-3 mb-3"
+						value={values.heTriggerAnalogCurve}
+						error={errors.heTriggerAnalogCurve}
+						isInvalid={Boolean(errors.heTriggerAnalogCurve)}
+						onChange={handleChange}
+					>
+						{Object.entries(CURVE_SELECT).map(([value, label], i) => (
+							<option key={`he-analog-curve-option-${i}`} value={value}>
+								{label}
+							</option>
+						))}
+					</FormSelect>
 				</Row>
 				<Row className="mb-2">
 					<TriggerActionsForm
