@@ -7,6 +7,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 
 import { AppContext } from '../Contexts/AppContext';
+import ButtonLayoutPreview from '../Components/ButtonLayoutPreview';
 import FormControl from '../Components/FormControl';
 import FormSelect from '../Components/FormSelect';
 import Section from '../Components/Section';
@@ -187,7 +188,7 @@ const FormContext = () => {
 };
 
 const isButtonLayoutCustom = (values) =>
-	values.buttonLayout === 12 || values.buttonLayoutRight === 16;
+	Number(values.buttonLayout) === 12 || Number(values.buttonLayoutRight) === 16;
 
 export default function DisplayConfigPage() {
 	const [loadingValues, setLoadingValues] = useState(true);
@@ -449,6 +450,9 @@ export default function DisplayConfigPage() {
 													</option>
 												))}
 											</FormSelect>
+										</Row>
+										<Row className="mb-4">
+											<ButtonLayoutPreview values={values} />
 										</Row>
 										{isButtonLayoutCustom(values) && (
 											<Row className="mb-3">
