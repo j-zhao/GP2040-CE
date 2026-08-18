@@ -46,8 +46,8 @@
 
 // Multiplexer 1 mappings (Channels 1-16)
 #define HETRIGGER_HE0_ACTION GpioAction::BUTTON_PRESS_UP
-#define HETRIGGER_HE1_ACTION GpioAction::BUTTON_PRESS_FN
-#define HETRIGGER_HE2_ACTION GpioAction::BUTTON_PRESS_R3
+#define HETRIGGER_HE1_ACTION GpioAction::BUTTON_PRESS_R3
+#define HETRIGGER_HE2_ACTION GpioAction::BUTTON_PRESS_FN
 #define HETRIGGER_HE3_ACTION GpioAction::BUTTON_PRESS_L2
 #define HETRIGGER_HE4_ACTION GpioAction::BUTTON_PRESS_R2
 #define HETRIGGER_HE5_ACTION GpioAction::BUTTON_PRESS_B2
@@ -98,8 +98,24 @@
 #define I2C1_PIN_SCL 11
 #define DISPLAY_FLIP 1
 
-#define BUTTON_LAYOUT BUTTON_LAYOUT_STICKLESS_13
-#define BUTTON_LAYOUT_RIGHT BUTTON_LAYOUT_STICKLESS_13B
+#define BUTTON_LAYOUT BUTTON_LAYOUT_STICKLESS_14
+#define BUTTON_LAYOUT_RIGHT BUTTON_LAYOUT_STICKLESS_14B
+
+// Status bar: input mode, d-pad mode, SOCD mode and the profile number are
+// worth the space on this board; turbo and macros are not used.
+#define DISPLAY_INPUT_MODE 1
+#define DISPLAY_TURBO_MODE 0
+#define DISPLAY_DPAD_MODE 1
+#define DISPLAY_SOCD_MODE 1
+#define DISPLAY_MACRO_MODE 0
+#define DISPLAY_PROFILE_MODE 1
+
+// Input history is off, so the layout keeps the full screen. The position and
+// length below only apply if it is turned on later.
+#define INPUT_HISTORY_ENABLED 0
+#define INPUT_HISTORY_LENGTH 21
+#define INPUT_HISTORY_COL 0
+#define INPUT_HISTORY_ROW 7
 
 #define USB_PERIPHERAL_ENABLED 1
 #define USB_PERIPHERAL_PIN_DPLUS 27
