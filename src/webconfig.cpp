@@ -2008,9 +2008,14 @@ std::string getHETriggerSweep()
 // Writes every channel's baseline/extreme as idle/pressed and marks it
 // calibrated, so a channel that never moved keeps its baseline as both
 // values, lands under HETRIGGER_MIN_SPAN and calibrates inert rather than
-// falling back to the full ADC range.
+// falling back to the full ADC range. An optional body of actuationPoint
+// and/or deactuationPoint (tenths of a percent) applies that threshold to
+// every channel in the same pass, so a sweep can set thresholds without
+// visiting each channel's modal.
 std::string commitHETriggerSweep()
 {
+    DynamicJsonDocument requestDoc = get_post_data();
+
     const size_t capacity = JSON_OBJECT_SIZE(4);
     DynamicJsonDocument doc(capacity);
 
@@ -2019,6 +2024,12 @@ std::string commitHETriggerSweep()
         doc["saved"] = false;
         return serialize_json(doc);
     }
+
+    JsonObject requestObj = requestDoc.as<JsonObject>();
+
+    // An actuation point of zero would be satisfied by a key at rest
+    const bool applyActuation = requestObj["actuationPoint"] > 0;
+    const bool applyDeactuation = requestObj["deactuationPoint"] != nullptr;
 
     HETriggerInfo* heTriggers = Storage::getInstance().getAddonOptions().heTriggerOptions.triggers;
     for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
@@ -2032,6 +2043,13 @@ std::string commitHETriggerSweep()
         heTriggers[he].idle = sweepBaseline[he];
         heTriggers[he].pressed = pressed;
         heTriggers[he].calibrated = true;
+
+        if (applyActuation) {
+            readTravel(heTriggers[he].actuationPoint, requestObj, "actuationPoint");
+        }
+        if (applyDeactuation) {
+            readTravel(heTriggers[he].deactuationPoint, requestObj, "deactuationPoint");
+        }
     }
 
     Storage::getInstance().getAddonOptions().heTriggerOptions.triggers_count = HETRIGGER_COUNT;

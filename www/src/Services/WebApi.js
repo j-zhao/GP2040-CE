@@ -711,9 +711,14 @@ async function getHETriggerSweep() {
 }
 
 // Save the sweep's captured idle/pressed values and mark channels calibrated.
-async function commitHETriggerSweep() {
+// An optional payload of actuationPoint/deactuationPoint (tenths of a percent)
+// applies that threshold to every channel as it commits.
+async function commitHETriggerSweep(thresholds) {
 	try {
-		const response = await Http.post(`${baseUrl}/api/commitHETriggerSweep`);
+		const response = await Http.post(
+			`${baseUrl}/api/commitHETriggerSweep`,
+			thresholds,
+		);
 		return response.data;
 	} catch (error) {
 		console.error(error);

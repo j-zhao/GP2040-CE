@@ -21,6 +21,10 @@ import useHETriggerStore, {
 	TRAVEL_MAX,
 	formatTravel,
 } from '../Store/useHETriggerStore';
+import {
+	tenthsToWholePercent,
+	wholePercentToTenths,
+} from '../Services/Utilities';
 
 import './HECalibration.scss';
 
@@ -112,6 +116,12 @@ const HECalibration = ({
 	const sweepTimerId = useRef<number>();
 	const sweepSessionActive = useRef(false);
 	const [sweepChannels, setSweepChannels] = useState<SweepChannel[]>([]);
+
+	// Thresholds applied to every channel on commit, in whole percent. Seeded
+	// from the first assigned channel so the sweep starts from what is already
+	// on the device rather than an arbitrary default.
+	const [sweepActuationPoint, setSweepActuationPoint] = useState(0);
+	const [sweepDeactuationPoint, setSweepDeactuationPoint] = useState(0);
 
 	// Only the channels within the active mux layout correspond to real
 	// hardware, mirroring the count TriggerActionsForm renders.
@@ -293,6 +303,17 @@ const HECalibration = ({
 
 	const startSweep = async () => {
 		setSweepChannels([]);
+		// Seed the apply-to-all inputs from the first assigned channel, so they
+		// reflect what is already on the device rather than appearing empty.
+		const seedIndex = sweepAssigned[0];
+		if (seedIndex !== undefined) {
+			setSweepActuationPoint(
+				tenthsToWholePercent(triggers[seedIndex].actuationPoint),
+			);
+			setSweepDeactuationPoint(
+				tenthsToWholePercent(triggers[seedIndex].deactuationPoint),
+			);
+		}
 		const result = await WebApi.startHETriggerSweep();
 		sweepSessionActive.current = Boolean(result?.active);
 		pollSweep();
@@ -319,7 +340,10 @@ const HECalibration = ({
 		}
 		stopSweepPolling();
 		sweepSessionActive.current = false;
-		await WebApi.commitHETriggerSweep();
+		await WebApi.commitHETriggerSweep({
+			actuationPoint: wholePercentToTenths(sweepActuationPoint),
+			deactuationPoint: wholePercentToTenths(sweepDeactuationPoint),
+		});
 		await fetchHETriggers();
 		setShowModal(false);
 	};
@@ -444,12 +468,16 @@ const HECalibration = ({
 					label={t(`HETrigger:actuation-input-text`)}
 					name="actuationPoint"
 					className="form-select-sm"
-					value={actuationPoint}
+					value={tenthsToWholePercent(actuationPoint)}
 					onChange={(e) => {
-						setActuationPoint(parseInt((e.target as HTMLInputElement).value));
+						setActuationPoint(
+							wholePercentToTenths(
+								parseInt((e.target as HTMLInputElement).value),
+							),
+						);
 					}}
 					min={1}
-					max={TRAVEL_MAX}
+					max={100}
 				/>
 			</Col>
 			<Col xs={6} className="mb-3">
@@ -474,14 +502,16 @@ const HECalibration = ({
 						label={t(`HETrigger:deactuation-input-text`)}
 						name="deactuationPoint"
 						className="form-select-sm"
-						value={deactuationPoint}
+						value={tenthsToWholePercent(deactuationPoint)}
 						onChange={(e) => {
 							setDeactuationPoint(
-								parseInt((e.target as HTMLInputElement).value),
+								wholePercentToTenths(
+									parseInt((e.target as HTMLInputElement).value),
+								),
 							);
 						}}
 						min={1}
-						max={actuationPoint}
+						max={tenthsToWholePercent(actuationPoint)}
 					/>
 				</Col>
 			)}
@@ -526,14 +556,16 @@ const HECalibration = ({
 							label={t(`HETrigger:press-sensitivity-input-text`)}
 							name="rtPressSensitivity"
 							className="form-select-sm"
-							value={pressSensitivity}
+							value={tenthsToWholePercent(pressSensitivity)}
 							onChange={(e) => {
 								setPressSensitivity(
-									parseInt((e.target as HTMLInputElement).value),
+									wholePercentToTenths(
+										parseInt((e.target as HTMLInputElement).value),
+									),
 								);
 							}}
 							min={1}
-							max={TRAVEL_MAX}
+							max={100}
 						/>
 					</Col>
 					<Col xs={6} className="mb-3">
@@ -556,14 +588,16 @@ const HECalibration = ({
 								label={t(`HETrigger:release-sensitivity-input-text`)}
 								name="rtReleaseSensitivity"
 								className="form-select-sm"
-								value={releaseSensitivity}
+								value={tenthsToWholePercent(releaseSensitivity)}
 								onChange={(e) => {
 									setReleaseSensitivity(
-										parseInt((e.target as HTMLInputElement).value),
+										wholePercentToTenths(
+											parseInt((e.target as HTMLInputElement).value),
+										),
 									);
 								}}
 								min={1}
-								max={TRAVEL_MAX}
+								max={100}
 							/>
 						</Col>
 					)}
@@ -778,6 +812,38 @@ const HECalibration = ({
 						total: sweepAssigned.length,
 					})}
 				</strong>
+			</Col>
+			<Col xs={6} className="mb-3">
+				<FormControl
+					type="number"
+					label={t('HETrigger:sweep-actuation-input-text')}
+					name="sweepActuationPoint"
+					className="form-select-sm"
+					value={sweepActuationPoint}
+					onChange={(e) => {
+						setSweepActuationPoint(
+							parseInt((e.target as HTMLInputElement).value),
+						);
+					}}
+					min={0}
+					max={100}
+				/>
+			</Col>
+			<Col xs={6} className="mb-3">
+				<FormControl
+					type="number"
+					label={t('HETrigger:sweep-deactuation-input-text')}
+					name="sweepDeactuationPoint"
+					className="form-select-sm"
+					value={sweepDeactuationPoint}
+					onChange={(e) => {
+						setSweepDeactuationPoint(
+							parseInt((e.target as HTMLInputElement).value),
+						);
+					}}
+					min={0}
+					max={sweepActuationPoint}
+				/>
 			</Col>
 			{sweepUnseen.length > 0 && (
 				<Col xs={12} className="mb-3">
