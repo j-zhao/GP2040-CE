@@ -12,16 +12,16 @@ export default {
 	'profile-socd-slider-note':
 		'The SOCD slider add-on is enabled. The slider hardware overrides this setting.',
 	'profile-he-override': 'Override Hall-Effect Thresholds',
-	'profile-he-actuation': 'Actuation Point (0.1%)',
-	'profile-he-deactuation': 'Deactuation Point (0.1%)',
+	'profile-he-actuation': 'Actuation Point (%)',
+	'profile-he-deactuation': 'Deactuation Point (%)',
 	'profile-he-rt-mode': 'Rapid Trigger',
 	'profile-he-rt-mode-options': {
 		off: 'Off',
 		normal: 'Rapid Trigger',
 		continuous: 'Continuous Rapid Trigger',
 	},
-	'profile-he-press-sensitivity': 'Press Sensitivity (0.1%)',
-	'profile-he-release-sensitivity': 'Release Sensitivity (0.1%)',
+	'profile-he-press-sensitivity': 'Press Sensitivity (%)',
+	'profile-he-release-sensitivity': 'Release Sensitivity (%)',
 	'profile-he-mirror-note':
 		'Applies to every hall-effect channel. A deactuation point of 0 uses the actuation point, and a release sensitivity of 0 uses the press sensitivity.',
 	'profile-pin-mapping-title': '{{profileLabel}} - GPIO Pin Mapping',

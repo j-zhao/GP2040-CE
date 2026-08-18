@@ -966,6 +966,7 @@ void ConfigUtils::initUnsetPropertiesWithDefaults(Config& config)
         INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[he], rtPressSensitivity, HETRIGGER_DEFAULT_RT_PRESS_SENS);
         INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[he], rtReleaseSensitivity, HETRIGGER_DEFAULT_RT_RELEASE_SENS);
         INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[he], socdPartner, HETRIGGER_DEFAULT_SOCD_PARTNER);
+        INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions.triggers[he], calibrated, false);
     }
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions, noiseFloor, HETRIGGER_NOISE_FLOOR);
     INIT_UNSET_PROPERTY(config.addonOptions.heTriggerOptions, analogDeadzone, HETRIGGER_ANALOG_DEADZONE);

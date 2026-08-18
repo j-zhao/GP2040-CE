@@ -1793,31 +1793,24 @@ std::string setHETriggerCalibrations()
     return serialize_json(doc);
 }
 
-// Live travel for the web configurator, as tenths of a percent per channel.
-//
-// The add-on cannot supply this: the main loop skips PreprocessAddons entirely
-// while the web configurator is up (src/gp2040.cpp), so nothing would ever
-// refresh. Nothing else owns the ADC in config mode, so this samples the
-// channels itself, using the saved pin configuration rather than the temporary
-// one that setHETriggerOptions programs for the calibration modal.
-std::string getHETriggerState()
+// Resolves the mux/select pin layout for the current options and programs the
+// GPIOs, the way the calibration modal and the live readout both need before
+// they can touch the ADC. Returns false when the options cannot address any
+// channel at all, which the caller reports as an error instead of sampling.
+static bool heInitPins(const HETriggerOptions& options, Pin_t adcPins[4], Pin_t selectPins[4], int& selectCount)
 {
-    const size_t capacity = JSON_OBJECT_SIZE(100);
-    DynamicJsonDocument doc(capacity);
+    if (options.muxChannels < 1)
+        return false;
 
-    const HETriggerOptions& options = Storage::getInstance().getAddonOptions().heTriggerOptions;
-    JsonArray travelList = doc.createNestedArray("travel");
+    adcPins[0] = (Pin_t)options.muxADCPin0;
+    adcPins[1] = (Pin_t)options.muxADCPin1;
+    adcPins[2] = (Pin_t)options.muxADCPin2;
+    adcPins[3] = (Pin_t)options.muxADCPin3;
+    selectPins[0] = (Pin_t)options.selectPin0;
+    selectPins[1] = (Pin_t)options.selectPin1;
+    selectPins[2] = (Pin_t)options.selectPin2;
+    selectPins[3] = (Pin_t)options.selectPin3;
 
-    if (options.muxChannels < 1) {
-        doc["error"] = "mux channels incorrect";
-        return serialize_json(doc);
-    }
-
-    const Pin_t adcPins[4] = { (Pin_t)options.muxADCPin0, (Pin_t)options.muxADCPin1,
-                               (Pin_t)options.muxADCPin2, (Pin_t)options.muxADCPin3 };
-    const Pin_t selectPins[4] = { (Pin_t)options.selectPin0, (Pin_t)options.selectPin1,
-                                  (Pin_t)options.selectPin2, (Pin_t)options.selectPin3 };
-    int selectCount = 0;
     switch (options.muxChannels) {
         case 4: selectCount = 2; break;
         case 8: selectCount = 3; break;
@@ -1834,14 +1827,23 @@ std::string getHETriggerState()
             gpio_set_dir(selectPins[i], GPIO_OUT);
         }
     }
+    return true;
+}
 
+// Walks every channel once, selecting its mux input, letting the mux settle,
+// and sampling the ADC samplesPerChannel times. Shared by the live travel
+// readout and the calibration sweep so there is one copy of the mux walk.
+// minOut/maxOut are optional; pass null when only the latest sample matters.
+static void heScanChannels(const HETriggerOptions& options, const Pin_t adcPins[4], const Pin_t selectPins[4],
+                            int selectCount, uint8_t samplesPerChannel, uint16_t* rawOut,
+                            uint16_t* minOut, uint16_t* maxOut)
+{
     for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
-        const HETriggerInfo& trigger = options.triggers[he];
         const uint32_t mux = he / options.muxChannels;
-        const int32_t scaleQ10 = heTravelScaleQ10(trigger.idle, trigger.pressed);
-
-        if (mux > 3 || adcPins[mux] < 26 || adcPins[mux] > 29 || scaleQ10 == 0) {
-            travelList.add(0);
+        if (mux > 3 || adcPins[mux] < 26 || adcPins[mux] > 29) {
+            rawOut[he] = 0;
+            if (minOut) minOut[he] = 0;
+            if (maxOut) maxOut[he] = 0;
             continue;
         }
 
@@ -1854,9 +1856,202 @@ std::string getHETriggerState()
         adc_select_input(adcPins[mux] - 26);
         busy_wait_us(options.muxSettleMicros);
 
-        travelList.add(heTravelFromRaw(adc_read(), trigger.idle, scaleQ10));
+        uint16_t raw = adc_read();
+        uint16_t lo = raw;
+        uint16_t hi = raw;
+        for (uint8_t s = 1; s < samplesPerChannel; s++) {
+            raw = adc_read();
+            if (raw < lo) lo = raw;
+            if (raw > hi) hi = raw;
+        }
+        rawOut[he] = raw;
+        if (minOut) minOut[he] = lo;
+        if (maxOut) maxOut[he] = hi;
+    }
+}
+
+// Live travel for the web configurator, as tenths of a percent per channel.
+//
+// The add-on cannot supply this: the main loop skips PreprocessAddons entirely
+// while the web configurator is up (src/gp2040.cpp), so nothing would ever
+// refresh. Nothing else owns the ADC in config mode, so this samples the
+// channels itself, using the saved pin configuration rather than the temporary
+// one that setHETriggerOptions programs for the calibration modal.
+std::string getHETriggerState()
+{
+    const size_t capacity = JSON_OBJECT_SIZE(100);
+    DynamicJsonDocument doc(capacity);
+
+    const HETriggerOptions& options = Storage::getInstance().getAddonOptions().heTriggerOptions;
+    JsonArray travelList = doc.createNestedArray("travel");
+
+    Pin_t adcPins[4];
+    Pin_t selectPins[4];
+    int selectCount;
+    if (!heInitPins(options, adcPins, selectPins, selectCount)) {
+        doc["error"] = "mux channels incorrect";
+        return serialize_json(doc);
     }
 
+    uint16_t raw[HETRIGGER_COUNT];
+    heScanChannels(options, adcPins, selectPins, selectCount, 1, raw, nullptr, nullptr);
+
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        const HETriggerInfo& trigger = options.triggers[he];
+        const uint32_t mux = he / options.muxChannels;
+        const int32_t scaleQ10 = heTravelScaleQ10(trigger.idle, trigger.pressed);
+
+        if (mux > 3 || adcPins[mux] < 26 || adcPins[mux] > 29 || scaleQ10 == 0) {
+            travelList.add(0);
+            continue;
+        }
+
+        travelList.add(heTravelFromRaw(raw[he], trigger.idle, scaleQ10));
+    }
+
+    return serialize_json(doc);
+}
+
+// Samples per channel while a sweep is polled, folded into a running min/max
+// so a fast press-release still gets caught between polls.
+#define HETRIGGER_SWEEP_SAMPLES 4
+
+static bool sweepActive = false;
+static uint16_t sweepBaseline[HETRIGGER_COUNT];
+static uint16_t sweepMinRaw[HETRIGGER_COUNT];
+static uint16_t sweepMaxRaw[HETRIGGER_COUNT];
+
+// Starts an all-channel calibration sweep: one scan taken now becomes every
+// channel's resting baseline, and the poller looks for movement away from it.
+std::string startHETriggerSweep()
+{
+    const size_t capacity = JSON_OBJECT_SIZE(4);
+    DynamicJsonDocument doc(capacity);
+
+    const HETriggerOptions& options = Storage::getInstance().getAddonOptions().heTriggerOptions;
+    Pin_t adcPins[4];
+    Pin_t selectPins[4];
+    int selectCount;
+    if (!heInitPins(options, adcPins, selectPins, selectCount)) {
+        doc["error"] = "mux channels incorrect";
+        return serialize_json(doc);
+    }
+
+    uint16_t raw[HETRIGGER_COUNT];
+    heScanChannels(options, adcPins, selectPins, selectCount, 1, raw, nullptr, nullptr);
+
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        sweepBaseline[he] = raw[he];
+        sweepMinRaw[he] = raw[he];
+        sweepMaxRaw[he] = raw[he];
+    }
+    sweepActive = true;
+
+    doc["active"] = true;
+    return serialize_json(doc);
+}
+
+// Polled while the sweep modal is open. Folds each new scan's samples into
+// the running min/max so a press-release between polls is not missed, and
+// reports which channels have moved far enough to count as pressed.
+std::string getHETriggerSweep()
+{
+    // 32 channels of 4 members (raw/min/max/moved), scaled the same way
+    // getHETriggerCalibrations scales its 9-member, 32-channel document to
+    // 600: roughly double the raw member count to cover the array and each
+    // channel object's own slot.
+    const size_t capacity = JSON_OBJECT_SIZE(300);
+    DynamicJsonDocument doc(capacity);
+
+    if (!sweepActive) {
+        doc["active"] = false;
+        return serialize_json(doc);
+    }
+
+    const HETriggerOptions& options = Storage::getInstance().getAddonOptions().heTriggerOptions;
+    Pin_t adcPins[4];
+    Pin_t selectPins[4];
+    int selectCount;
+    if (!heInitPins(options, adcPins, selectPins, selectCount)) {
+        doc["error"] = "mux channels incorrect";
+        return serialize_json(doc);
+    }
+
+    uint16_t raw[HETRIGGER_COUNT];
+    uint16_t minRaw[HETRIGGER_COUNT];
+    uint16_t maxRaw[HETRIGGER_COUNT];
+    heScanChannels(options, adcPins, selectPins, selectCount, HETRIGGER_SWEEP_SAMPLES, raw, minRaw, maxRaw);
+
+    doc["active"] = true;
+    JsonArray channelList = doc.createNestedArray("channels");
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        if (minRaw[he] < sweepMinRaw[he]) sweepMinRaw[he] = minRaw[he];
+        if (maxRaw[he] > sweepMaxRaw[he]) sweepMaxRaw[he] = maxRaw[he];
+
+        // Baseline sits inside [min, max] by construction, so both distances
+        // are already non-negative and the larger one is the true swing,
+        // whether the sensor reads high or low once pressed.
+        const int32_t fromMin = (int32_t)sweepBaseline[he] - (int32_t)sweepMinRaw[he];
+        const int32_t fromMax = (int32_t)sweepMaxRaw[he] - (int32_t)sweepBaseline[he];
+        const bool moved = (fromMin >= HETRIGGER_MIN_SPAN) || (fromMax >= HETRIGGER_MIN_SPAN);
+
+        JsonObject channel = channelList.createNestedObject();
+        channel["raw"] = raw[he];
+        channel["min"] = sweepMinRaw[he];
+        channel["max"] = sweepMaxRaw[he];
+        channel["moved"] = moved;
+    }
+
+    return serialize_json(doc);
+}
+
+// Writes every channel's baseline/extreme as idle/pressed and marks it
+// calibrated, so a channel that never moved keeps its baseline as both
+// values, lands under HETRIGGER_MIN_SPAN and calibrates inert rather than
+// falling back to the full ADC range.
+std::string commitHETriggerSweep()
+{
+    const size_t capacity = JSON_OBJECT_SIZE(4);
+    DynamicJsonDocument doc(capacity);
+
+    if (!sweepActive) {
+        doc["active"] = false;
+        doc["saved"] = false;
+        return serialize_json(doc);
+    }
+
+    HETriggerInfo* heTriggers = Storage::getInstance().getAddonOptions().heTriggerOptions.triggers;
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        const int32_t fromMin = (int32_t)sweepBaseline[he] - (int32_t)sweepMinRaw[he];
+        const int32_t fromMax = (int32_t)sweepMaxRaw[he] - (int32_t)sweepBaseline[he];
+        // Whichever extreme moved furthest from the baseline is "pressed",
+        // which works whether the sensor reads high or low at rest and needs
+        // no separate polarity branch.
+        const uint16_t pressed = (fromMax >= fromMin) ? sweepMaxRaw[he] : sweepMinRaw[he];
+
+        heTriggers[he].idle = sweepBaseline[he];
+        heTriggers[he].pressed = pressed;
+        heTriggers[he].calibrated = true;
+    }
+
+    Storage::getInstance().getAddonOptions().heTriggerOptions.triggers_count = HETRIGGER_COUNT;
+    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+
+    sweepActive = false;
+    doc["active"] = false;
+    doc["saved"] = true;
+    return serialize_json(doc);
+}
+
+// Abandons the in-progress sweep without touching stored calibration.
+std::string cancelHETriggerSweep()
+{
+    const size_t capacity = JSON_OBJECT_SIZE(4);
+    DynamicJsonDocument doc(capacity);
+
+    sweepActive = false;
+
+    doc["active"] = false;
     return serialize_json(doc);
 }
 
@@ -2929,6 +3124,10 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/getHETriggerVoltage", getHETriggerVoltage },
     { "/api/getHETriggerState", getHETriggerState },
     { "/api/setHETriggerOptions", setHETriggerOptions },
+    { "/api/startHETriggerSweep", startHETriggerSweep },
+    { "/api/getHETriggerSweep", getHETriggerSweep },
+    { "/api/commitHETriggerSweep", commitHETriggerSweep },
+    { "/api/cancelHETriggerSweep", cancelHETriggerSweep },
     { "/api/setReactiveLEDs", setReactiveLEDs },
     { "/api/getReactiveLEDs", getReactiveLEDs },
     { "/api/setKeyMappings", setKeyMappings },

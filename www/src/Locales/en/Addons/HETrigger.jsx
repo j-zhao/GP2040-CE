@@ -1,6 +1,7 @@
 export default {
 	'header-text': 'Hall-Effect Trigger',
-	'desc-header-text': 'Hall Effect Trigger Supports 4-Channel, 8-Channel, and 16-Channel Multiplexers.',
+	'desc-header-text':
+		'Hall Effect Trigger Supports 4-Channel, 8-Channel, and 16-Channel Multiplexers.',
 	'available-pins-text': 'Available ADC pins: {{pins}}',
 	'multiplexer-channel-select': 'Channels Per Multiplexer',
 	'direct-no-mux': 'Direct (No Mux)',
@@ -31,17 +32,16 @@ export default {
 	'table-release-sensitivity-text': 'Release Sensitivity',
 	'table-socd-partner-text': 'SOCD Partner',
 	'table-live-travel-text': 'Live Travel',
-	'noise-floor-label': 'Noise Floor (0.1%)',
+	'noise-floor-label': 'Noise Floor (%)',
 	'mux-settle-label': 'Mux Settle (us)',
 	'analog-proportional-label': 'Proportional Stick Output',
-	'analog-deadzone-label': 'Analog Deadzone (0.1%)',
+	'analog-deadzone-label': 'Analog Deadzone (%)',
 	'analog-curve-label': 'Analog Response Curve',
 	'analog-curve-linear': 'Linear',
 	'analog-curve-exponential': 'Exponential',
 	'analog-curve-s': 'S-Curve',
 	'overwrite-all-warning': 'Overwrite All Triggers',
 	'overwrite-confirm': 'Confirm Overwrite All Triggers',
-	'next-calibration-text': 'Next Calibration',
 	'finish-calibration-text': 'Finish Calibration',
 	'calibrate-idle-button': 'Calibrate Idle',
 	'calibrate-pressed-button': 'Calibrate Pressed',
@@ -69,13 +69,35 @@ export default {
 	'calibration-pressed-text': 'Pressed Voltage Reading:',
 	'calibration-trigger-text': 'Trigger Voltage',
 	'calibration-back-button': 'Back',
-	'calibration-first-step': 'We need to calibrate the idle voltage and full press voltage of the hall-effect switch. ' +
-								'After calibration, we can adjust the trigger-activation point to our desired depth. ' +
-								'First, let\'s calibrate the idle voltage. Leave the hall-effect button untouched and click the "Calibrate Idle" button.',
-	'calibration-second-step': 'Next, press the button fully to reach our maximum depth. Activation position can be adjusted after calibration.',
-	'calibration-third-step': 'Finally, set the actuation point as a percentage of travel. '+
-								'Once adjusted, press the button and verify it activates at the desired depth.',
-	'calibration-manual-step': 'Please adjust the following attributes of the hall effect button to the desired amounts. '+
-							    'Once the desired values have been found, you can copy these values and set all triggers '+
-							    'on the device.',
+	'calibration-first-step':
+		'We need to calibrate the idle voltage and full press voltage of the hall-effect switch. ' +
+		'After calibration, we can adjust the trigger-activation point to our desired depth. ' +
+		'First, let\'s calibrate the idle voltage. Leave the hall-effect button untouched and click the "Calibrate Idle" button.',
+	'calibration-second-step':
+		'Next, press the button fully to reach our maximum depth. Activation position can be adjusted after calibration.',
+	'calibration-third-step':
+		'Finally, set the actuation point as a percentage of travel. ' +
+		'Once adjusted, press the button and verify it activates at the desired depth.',
+	'calibration-manual-step':
+		'Please adjust the following attributes of the hall effect button to the desired amounts. ' +
+		'Once the desired values have been found, you can copy these values and set all triggers ' +
+		'on the device.',
+	'sweep-header-text': 'Calibrate All Channels',
+	'sweep-action-label': 'Action',
+	'sweep-instructions-text':
+		'Press and release every assigned button once, one at a time. Each channel below turns green once it has been seen.',
+	'sweep-progress-text': '{{seen}} of {{total}} channels seen',
+	'sweep-channel-label': 'Channel {{channel}}',
+	'sweep-unassigned-label': '(Unassigned)',
+	'sweep-seen-label': 'Seen',
+	'sweep-not-seen-label': 'Not seen',
+	'sweep-span-label': 'Span: {{span}}',
+	'sweep-inert-warning':
+		'Channels not seen will be saved as inert and will never actuate.',
+	'sweep-suspicious-warning':
+		'These channels moved only a small amount, so calibration may be unreliable: {{channels}}',
+	'sweep-save-confirm':
+		'Some channels were not seen, or moved only a small amount. Save anyway?',
+	'sweep-save-button': 'Save Calibration',
+	'sweep-cancel-button': 'Cancel',
 };

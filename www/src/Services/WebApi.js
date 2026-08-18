@@ -689,6 +689,47 @@ async function getHETriggerState() {
 	}
 }
 
+// Begin a calibrate-all sweep session; the firmware captures each channel's
+// resting value as its baseline.
+async function startHETriggerSweep() {
+	try {
+		const response = await Http.post(`${baseUrl}/api/startHETriggerSweep`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+// Poll the running sweep for each channel's raw reading and observed min/max.
+async function getHETriggerSweep() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getHETriggerSweep`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+// Save the sweep's captured idle/pressed values and mark channels calibrated.
+async function commitHETriggerSweep() {
+	try {
+		const response = await Http.post(`${baseUrl}/api/commitHETriggerSweep`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+// Discard the running sweep without saving anything.
+async function cancelHETriggerSweep() {
+	try {
+		const response = await Http.post(`${baseUrl}/api/cancelHETriggerSweep`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
 async function getHeldPins(abortSignal) {
 	try {
 		const response = await Http.get(`${baseUrl}/api/getHeldPins`, {
@@ -755,6 +796,10 @@ export default {
 	setHETriggerCalibrations,
 	getHETriggerCalibrations,
 	setHETriggerOptions,
+	startHETriggerSweep,
+	getHETriggerSweep,
+	commitHETriggerSweep,
+	cancelHETriggerSweep,
 	getReactiveLEDs,
 	setReactiveLEDs,
 	getButtonLayouts,

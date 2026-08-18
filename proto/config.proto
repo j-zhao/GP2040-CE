@@ -922,6 +922,10 @@ message HETriggerInfo
     optional uint32 rtReleaseSensitivity = 14 [(nanopb).int_size = IS_16];
     // 0 is no partner, otherwise the partner channel index plus one
     optional uint32 socdPartner = 15 [(nanopb).int_size = IS_16];
+    // Set once idle/pressed come from a calibration sweep rather than defaults,
+    // so an unpressed channel calibrates inert instead of falling back to the
+    // full ADC range.
+    optional bool calibrated = 16 [default = false];
 }
 
 message HETriggerOptions

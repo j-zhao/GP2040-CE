@@ -107,10 +107,15 @@ void HETriggerAddon::setup() {
                 continue;
 
             // A channel that was never calibrated still has to work rather than
-            // silently disappear, so it falls back to the full ADC range.
+            // silently disappear, so an uncalibrated channel with no valid span
+            // falls back to the full ADC range. A channel that went through the
+            // calibration sweep but was never pressed has a real idle reading and
+            // no reason to actuate, so it is left out of the scan list entirely.
             int32_t scaleQ10 = heTravelScaleQ10(trigger.idle, trigger.pressed);
             int32_t idle = trigger.idle;
             if (scaleQ10 == 0) {
+                if (trigger.calibrated)
+                    continue;
                 idle = 0;
                 scaleQ10 = heTravelScaleQ10(0, ADC_MAX);
             }

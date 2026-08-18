@@ -45,6 +45,10 @@ import './PinMapping.scss';
 import { MultiValue, SingleValue } from 'react-select';
 import InfoCircle from '../Icons/InfoCircle';
 import WebApi from '../Services/WebApi';
+import {
+	tenthsToWholePercent,
+	wholePercentToTenths,
+} from '../Services/Utilities';
 
 type OptionType = {
 	label: string;
@@ -208,10 +212,7 @@ const ProfileSocdSelect = memo(function ProfileSocdSelect({
 	return (
 		<div>
 			<Form.Label>{t('PinMapping:profile-socd-mode-title')}</Form.Label>
-			<Form.Select
-				value={socdEnabled ? socdMode : -1}
-				onChange={onChange}
-			>
+			<Form.Select value={socdEnabled ? socdMode : -1} onChange={onChange}>
 				<option value={-1}>{t('PinMapping:profile-socd-use-global')}</option>
 				{SOCD_OPTION_KEYS.map((key, value) => (
 					<option key={key} value={value}>
@@ -220,9 +221,7 @@ const ProfileSocdSelect = memo(function ProfileSocdSelect({
 				))}
 			</Form.Select>
 			{sliderEnabled && (
-				<Form.Text muted>
-					{t('PinMapping:profile-socd-slider-note')}
-				</Form.Text>
+				<Form.Text muted>{t('PinMapping:profile-socd-slider-note')}</Form.Text>
 			)}
 		</div>
 	);
@@ -251,10 +250,13 @@ const ProfileHESettings = memo(function ProfileHESettings({
 		})),
 	);
 
-	const setNumber = useCallback(
+	// Thresholds and sensitivities are stored in tenths of a percent; the
+	// input only ever shows and accepts whole percent.
+	const setPercent = useCallback(
 		(field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
+			const percent = parseInt(event.target.value, 10) || 0;
 			setProfileHE(profileIndex, {
-				[field]: parseInt(event.target.value, 10) || 0,
+				[field]: wholePercentToTenths(percent),
 			});
 		},
 		[],
@@ -293,10 +295,10 @@ const ProfileHESettings = memo(function ProfileHESettings({
 						<Form.Label>{t('PinMapping:profile-he-actuation')}</Form.Label>
 						<Form.Control
 							type="number"
-							min={1}
-							max={1000}
-							value={settings.heActuationPoint}
-							onChange={setNumber('heActuationPoint')}
+							min={0}
+							max={100}
+							value={tenthsToWholePercent(settings.heActuationPoint)}
+							onChange={setPercent('heActuationPoint')}
 						/>
 					</Col>
 					<Col md={6}>
@@ -304,9 +306,9 @@ const ProfileHESettings = memo(function ProfileHESettings({
 						<Form.Control
 							type="number"
 							min={0}
-							max={1000}
-							value={settings.heDeactuationPoint}
-							onChange={setNumber('heDeactuationPoint')}
+							max={100}
+							value={tenthsToWholePercent(settings.heDeactuationPoint)}
+							onChange={setPercent('heDeactuationPoint')}
 						/>
 					</Col>
 					<Col md={6} className="mt-2">
@@ -334,10 +336,10 @@ const ProfileHESettings = memo(function ProfileHESettings({
 								</Form.Label>
 								<Form.Control
 									type="number"
-									min={1}
-									max={1000}
-									value={settings.heRtPressSensitivity}
-									onChange={setNumber('heRtPressSensitivity')}
+									min={0}
+									max={100}
+									value={tenthsToWholePercent(settings.heRtPressSensitivity)}
+									onChange={setPercent('heRtPressSensitivity')}
 								/>
 							</Col>
 							<Col md={6} className="mt-2">
@@ -347,9 +349,9 @@ const ProfileHESettings = memo(function ProfileHESettings({
 								<Form.Control
 									type="number"
 									min={0}
-									max={1000}
-									value={settings.heRtReleaseSensitivity}
-									onChange={setNumber('heRtReleaseSensitivity')}
+									max={100}
+									value={tenthsToWholePercent(settings.heRtReleaseSensitivity)}
+									onChange={setPercent('heRtReleaseSensitivity')}
 								/>
 							</Col>
 						</>
@@ -567,7 +569,7 @@ const PinSection = memo(function PinSection({
 							<ProfileHESettings profileIndex={profileIndex} />
 						</Col>
 						{profileIndex > 0 && (
-							<Col className='order-first order-md-last'>
+							<Col className="order-first order-md-last">
 								<FormCheck
 									disabled={profileIndex === activeProfile}
 									size={3}

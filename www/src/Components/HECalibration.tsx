@@ -1,5 +1,15 @@
 import { useEffect, useState, useRef } from 'react';
-import { Button, Modal, Row, Col, ProgressBar, Form, Spinner } from 'react-bootstrap';
+import {
+	Alert,
+	Button,
+	Modal,
+	Row,
+	Col,
+	ProgressBar,
+	Form,
+	Spinner,
+	Table,
+} from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 
 import FormControl from '../Components/FormControl';
@@ -23,6 +33,21 @@ const ADC_MAX = 4096;
 // headers/addons/he_trigger.h
 const MIN_SPAN = 16;
 
+// A span this close to MIN_SPAN still counts as "moved", but is too small to
+// trust for calibration, so the sweep flags it rather than silently saving it.
+const SUSPICIOUS_SPAN = MIN_SPAN * 4;
+
+// Firmware sweep polling interval. Fast enough to catch a quick tap without
+// hammering the device, since the firmware samples several times per request.
+const SWEEP_POLL_MS = 250;
+
+type SweepChannel = {
+	raw: number;
+	min: number;
+	max: number;
+	moved: boolean;
+};
+
 const RT_OFF = 0;
 const RT_NORMAL = 1;
 const RT_CONTINUOUS = 2;
@@ -35,7 +60,7 @@ type HECalibrationProps = {
 	showModal: boolean;
 	triggers: Trigger[];
 	values: any;
-}
+};
 
 const getOption = (e, actionId) => {
 	return {
@@ -65,10 +90,10 @@ const HECalibration = ({
 	const { t } = useTranslation('');
 	const setHETrigger = useHETriggerStore((state) => state.setHETrigger);
 	const setAllHETriggers = useHETriggerStore((state) => state.setAllHETriggers);
+	const fetchHETriggers = useHETriggerStore((state) => state.fetchHETriggers);
 	const timerId = useRef<number>();
 	const [title, setTitle] = useState('');
 	const target = useRef(-1);
-	const [nextTarget, setNextTarget] = useState(-1);
 	const previousStep = useRef(0);
 	const [calibrationStep, setCalibrationStep] = useState(0);
 	const [voltage, setVoltage] = useState(0);
@@ -81,6 +106,28 @@ const HECalibration = ({
 	const [pressSensitivity, setPressSensitivity] = useState(30);
 	const [releaseSensitivity, setReleaseSensitivity] = useState(0);
 	const [socdPartner, setSocdPartner] = useState(0);
+
+	// Calibrate-all sweep session state. sweepChannels holds one entry per
+	// channel, in channel order, as last reported by the firmware.
+	const sweepTimerId = useRef<number>();
+	const sweepSessionActive = useRef(false);
+	const [sweepChannels, setSweepChannels] = useState<SweepChannel[]>([]);
+
+	// Only the channels within the active mux layout correspond to real
+	// hardware, mirroring the count TriggerActionsForm renders.
+	const sweepChannelCount =
+		Math.min(4, Math.floor(32 / muxChannels)) * muxChannels;
+	const sweepAssigned = Array.from(
+		{ length: sweepChannelCount },
+		(_, i) => i,
+	).filter((i) => triggers[i].action !== -10);
+	const sweepUnseen = sweepAssigned.filter((i) => !sweepChannels[i]?.moved);
+	const sweepSuspicious = sweepAssigned.filter((i) => {
+		const channel = sweepChannels[i];
+		if (!channel || !channel.moved) return false;
+		return channel.max - channel.min < SUSPICIOUS_SPAN;
+	});
+	const sweepSeenCount = sweepAssigned.length - sweepUnseen.length;
 
 	// Peak and valley of the live preview, mirroring the firmware state machine
 	const peak = useRef(0);
@@ -194,48 +241,28 @@ const HECalibration = ({
 			...currentSettings(),
 		});
 		stopCalibration();
-		if ( calibrateAllLoop ) {
-			checkNextTarget();
-		} else {
-			setShowModal(false);
-		}
-	};
-
-	const checkNextTarget = () => {
-		if ( nextTarget!== -1 ) {
-			target.current = nextTarget;
-			setNextTarget(getNextTarget());
-			updateTitle();
-			restartCalibration();
-		} else {
-			setShowModal(false);
-		}
+		setShowModal(false);
 	};
 
 	const updateTitle = () => {
-		if ( target.current !== -1 ) {
+		if (target.current !== -1) {
 			// set title
-			const option = getOption(triggers[target.current], triggers[target.current].action);
+			const option = getOption(
+				triggers[target.current],
+				triggers[target.current].action,
+			);
 			const actionTitle = t(`PinMapping:actions.${option.label}`);
-			if ( muxChannels > 1 ) {
-				const muxNum = Math.floor(target.current/muxChannels);
-				const channelNum = target.current%muxChannels;
+			if (muxChannels > 1) {
+				const muxNum = Math.floor(target.current / muxChannels);
+				const channelNum = target.current % muxChannels;
 				setTitle(`${actionTitle} - Mux ${muxNum} - Channel ${channelNum}`);
 			} else {
-				setTitle(`${actionTitle} - Direct - ADC ${values[`muxADCPin${target.current}` as keyof typeof values]}`);
+				setTitle(
+					`${actionTitle} - Direct - ADC ${values[`muxADCPin${target.current}` as keyof typeof values]}`,
+				);
 			}
 		}
 	};
-
-	const getNextTarget = () => {
-		// Find our next
-		for(var i = target.current+1; i < 32; i++) {
-			if (triggers[i].action !== -10) {
-				return i;
-			}
-		}
-		return -1;
-	}
 
 	const overwriteAllCalibration = () => {
 		setAllHETriggers(currentSettings());
@@ -245,12 +272,64 @@ const HECalibration = ({
 	const stopCalibration = async () => {
 		setCalibrationStep(0);
 		target.current = -1;
-		if (timerId)
-			clearInterval(timerId.current);
+		if (timerId) clearInterval(timerId.current);
+	};
+
+	// Stops the poll but leaves the firmware session alone; callers decide
+	// whether to commit or cancel it.
+	const stopSweepPolling = () => {
+		if (sweepTimerId.current) clearInterval(sweepTimerId.current);
+		sweepTimerId.current = undefined;
+	};
+
+	const pollSweep = async () => {
+		// Pausing while the tab is hidden avoids piling up requests the user
+		// cannot see the results of anyway.
+		if (document.hidden) return;
+		const result = await WebApi.getHETriggerSweep();
+		if (!result || !result.active) return;
+		setSweepChannels(result.channels || []);
+	};
+
+	const startSweep = async () => {
+		setSweepChannels([]);
+		const result = await WebApi.startHETriggerSweep();
+		sweepSessionActive.current = Boolean(result?.active);
+		pollSweep();
+		stopSweepPolling();
+		sweepTimerId.current = setInterval(pollSweep, SWEEP_POLL_MS);
+	};
+
+	// Discards the running sweep, if any, without saving. Safe to call more
+	// than once or when no sweep was started.
+	const cancelSweepSession = async () => {
+		stopSweepPolling();
+		if (sweepSessionActive.current) {
+			sweepSessionActive.current = false;
+			await WebApi.cancelHETriggerSweep();
+		}
+	};
+
+	const commitSweep = async () => {
+		if (
+			(sweepUnseen.length > 0 || sweepSuspicious.length > 0) &&
+			!window.confirm(t('HETrigger:sweep-save-confirm'))
+		) {
+			return;
+		}
+		stopSweepPolling();
+		sweepSessionActive.current = false;
+		await WebApi.commitHETriggerSweep();
+		await fetchHETriggers();
+		setShowModal(false);
 	};
 
 	const closeModal = async () => {
-		stopCalibration();
+		if (calibrateAllLoop) {
+			await cancelSweepSession();
+		} else {
+			stopCalibration();
+		}
 		setShowModal(false);
 	};
 
@@ -272,13 +351,12 @@ const HECalibration = ({
 			});
 			updateCalibrationRead(0);
 		}
-	}
+	};
 
-	const updateCalibrationRead = (step:number) => {
+	const updateCalibrationRead = (step: number) => {
 		setCalibrationStep(step);
 		// Begin reading
-		if (timerId.current)
-			clearInterval(timerId.current);
+		if (timerId.current) clearInterval(timerId.current);
 		const intervalId = setInterval(() => {
 			readHallEffect(step);
 		}, 50);
@@ -286,13 +364,8 @@ const HECalibration = ({
 	};
 
 	// Start Capturing on Modal Show
-	const startCalibration = async() => {
-		if ( calibrateAllLoop ) {
-			target.current = getNextTarget();
-			setNextTarget(getNextTarget());
-		} else {
-			target.current = calibrationTarget;
-		}
+	const startCalibration = async () => {
+		target.current = calibrationTarget;
 		loadTarget();
 	};
 
@@ -303,18 +376,18 @@ const HECalibration = ({
 	};
 
 	const calculateVoltagePercentage = () => {
-		return (voltage/(ADC_MAX/100.0));
+		return voltage / (ADC_MAX / 100.0);
 	};
 
 	const travelPercentage = () => travel / (TRAVEL_MAX / 100.0);
 
-	const readHallEffect = async (calibrationStep:number) => {
+	const readHallEffect = async (calibrationStep: number) => {
 		const result = await WebApi.getHETriggerVoltage({
-			targetId: target.current
+			targetId: target.current,
 		});
 
 		if (!result || !result.data) {
-			console.error("Could not get hall-effect trigger calibration!");
+			console.error('Could not get hall-effect trigger calibration!');
 			return;
 		}
 
@@ -322,13 +395,17 @@ const HECalibration = ({
 
 		// For Web-Testing Debug Only
 		if (data.debug && data.debug === true) {
-			if ( calibrationStep === 0 ) {
+			if (calibrationStep === 0) {
 				setVoltage(150); // min we'll set to 20
-			} else if ( calibrationStep === 1 ) {
+			} else if (calibrationStep === 1) {
 				setVoltage(3500); // max we'll set to 3500
-			} else if ( calibrationStep === 2 || calibrationStep === 3 ) {
-				let time = (new Date()).getTime();
-				const V = (150)+Math.floor((Math.cos((( time/10 ) % 365) * Math.PI / 180)+1.0)*1500);
+			} else if (calibrationStep === 2 || calibrationStep === 3) {
+				let time = new Date().getTime();
+				const V =
+					150 +
+					Math.floor(
+						(Math.cos((((time / 10) % 365) * Math.PI) / 180) + 1.0) * 1500,
+					);
 				setVoltage(V);
 			}
 		} else {
@@ -346,14 +423,15 @@ const HECalibration = ({
 			<Col xs={12} className="mb-3 text-center">
 				<ProgressBar>
 					<ProgressBar
-						variant={activationState?"success":"warning"}
+						variant={activationState ? 'success' : 'warning'}
 						now={travelPercentage()}
 						key={1}
 					/>
 				</ProgressBar>
 			</Col>
 			<Col xs={12} className="mb-3">
-				{formatTravel(travel)} ({voltage}) {activationState?t('HETrigger:pressed-text'):""}
+				{formatTravel(travel)} ({voltage}){' '}
+				{activationState ? t('HETrigger:pressed-text') : ''}
 			</Col>
 		</>
 	);
@@ -389,20 +467,24 @@ const HECalibration = ({
 					}}
 				/>
 			</Col>
-			{deactuationPoint !== 0 && <Col xs={6} className="mb-3">
-				<FormControl
-					type="number"
-					label={t(`HETrigger:deactuation-input-text`)}
-					name="deactuationPoint"
-					className="form-select-sm"
-					value={deactuationPoint}
-					onChange={(e) => {
-						setDeactuationPoint(parseInt((e.target as HTMLInputElement).value));
-					}}
-					min={1}
-					max={actuationPoint}
-				/>
-			</Col>}
+			{deactuationPoint !== 0 && (
+				<Col xs={6} className="mb-3">
+					<FormControl
+						type="number"
+						label={t(`HETrigger:deactuation-input-text`)}
+						name="deactuationPoint"
+						className="form-select-sm"
+						value={deactuationPoint}
+						onChange={(e) => {
+							setDeactuationPoint(
+								parseInt((e.target as HTMLInputElement).value),
+							);
+						}}
+						min={1}
+						max={actuationPoint}
+					/>
+				</Col>
+			)}
 			<Col xs={12} className="mb-3">
 				<Form.Range
 					min={1}
@@ -436,49 +518,57 @@ const HECalibration = ({
 					))}
 				</FormSelect>
 			</Col>
-			{rtMode !== RT_OFF && <>
-				<Col xs={6} className="mb-3">
-					<FormControl
-						type="number"
-						label={t(`HETrigger:press-sensitivity-input-text`)}
-						name="rtPressSensitivity"
-						className="form-select-sm"
-						value={pressSensitivity}
-						onChange={(e) => {
-							setPressSensitivity(parseInt((e.target as HTMLInputElement).value));
-						}}
-						min={1}
-						max={TRAVEL_MAX}
-					/>
-				</Col>
-				<Col xs={6} className="mb-3">
-					<FormCheck
-						label={t('HETrigger:separate-sensitivity-label')}
-						type="switch"
-						name="separateSensitivity"
-						id="HETriggerSeparateSensitivity"
-						isInvalid={false}
-						checked={releaseSensitivity !== 0}
-						onChange={(e) => {
-							setReleaseSensitivity(e.target.checked ? pressSensitivity : 0);
-						}}
-					/>
-				</Col>
-				{releaseSensitivity !== 0 && <Col xs={6} className="mb-3">
-					<FormControl
-						type="number"
-						label={t(`HETrigger:release-sensitivity-input-text`)}
-						name="rtReleaseSensitivity"
-						className="form-select-sm"
-						value={releaseSensitivity}
-						onChange={(e) => {
-							setReleaseSensitivity(parseInt((e.target as HTMLInputElement).value));
-						}}
-						min={1}
-						max={TRAVEL_MAX}
-					/>
-				</Col>}
-			</>}
+			{rtMode !== RT_OFF && (
+				<>
+					<Col xs={6} className="mb-3">
+						<FormControl
+							type="number"
+							label={t(`HETrigger:press-sensitivity-input-text`)}
+							name="rtPressSensitivity"
+							className="form-select-sm"
+							value={pressSensitivity}
+							onChange={(e) => {
+								setPressSensitivity(
+									parseInt((e.target as HTMLInputElement).value),
+								);
+							}}
+							min={1}
+							max={TRAVEL_MAX}
+						/>
+					</Col>
+					<Col xs={6} className="mb-3">
+						<FormCheck
+							label={t('HETrigger:separate-sensitivity-label')}
+							type="switch"
+							name="separateSensitivity"
+							id="HETriggerSeparateSensitivity"
+							isInvalid={false}
+							checked={releaseSensitivity !== 0}
+							onChange={(e) => {
+								setReleaseSensitivity(e.target.checked ? pressSensitivity : 0);
+							}}
+						/>
+					</Col>
+					{releaseSensitivity !== 0 && (
+						<Col xs={6} className="mb-3">
+							<FormControl
+								type="number"
+								label={t(`HETrigger:release-sensitivity-input-text`)}
+								name="rtReleaseSensitivity"
+								className="form-select-sm"
+								value={releaseSensitivity}
+								onChange={(e) => {
+									setReleaseSensitivity(
+										parseInt((e.target as HTMLInputElement).value),
+									);
+								}}
+								min={1}
+								max={TRAVEL_MAX}
+							/>
+						</Col>
+					)}
+				</>
+			)}
 		</>
 	);
 
@@ -494,7 +584,11 @@ const HECalibration = ({
 				</Col>
 				<Col xs={12} className="mb-3 text-center">
 					<ProgressBar>
-						<ProgressBar variant="info" now={calculateVoltagePercentage()} key={1} />
+						<ProgressBar
+							variant="info"
+							now={calculateVoltagePercentage()}
+							key={1}
+						/>
 					</ProgressBar>
 				</Col>
 				<Col xs={12} className="mb-3">
@@ -516,14 +610,23 @@ const HECalibration = ({
 				</Col>
 				<Col xs={12} className="mb-3 text-center">
 					<ProgressBar>
-						<ProgressBar variant="info" now={calculateVoltagePercentage()} key={1} />
+						<ProgressBar
+							variant="info"
+							now={calculateVoltagePercentage()}
+							key={1}
+						/>
 					</ProgressBar>
 				</Col>
 				<Col xs={12} className="mb-3">
 					<h3>{voltage}</h3>
 				</Col>
 				<Col xs={3} className="mb-3">
-					<Button onClick={() => { restartCalibration(); }} variant="danger">
+					<Button
+						onClick={() => {
+							restartCalibration();
+						}}
+						variant="danger"
+					>
 						{t(`HETrigger:restart-text`)}
 					</Button>
 				</Col>
@@ -613,90 +716,235 @@ const HECalibration = ({
 							}
 						}}
 						className="col-sm-4"
-					>{t(`HETrigger:overwrite-all-warning`)}
+					>
+						{t(`HETrigger:overwrite-all-warning`)}
 					</Button>
 				</Col>
 			</Row>
 		);
 	};
 
+	// Compact per-channel row for the calibrate-all sweep: channel number,
+	// assigned action if any, a live travel bar, the captured span, and a
+	// seen / not-seen indicator driven by `moved`.
+	const sweepRow = (i: number) => {
+		const channel = sweepChannels[i];
+		const assigned = triggers[i].action !== -10;
+		const option = getOption(triggers[i], triggers[i].action);
+		const actionLabel = assigned
+			? t(`PinMapping:actions.${option.label}`)
+			: t('HETrigger:sweep-unassigned-label');
+		const span = channel ? channel.max - channel.min : 0;
+		const rowTravel =
+			channel && span > 0
+				? Math.round(((channel.raw - channel.min) / span) * 100)
+				: 0;
+		const moved = Boolean(channel?.moved);
+		const suspicious = assigned && moved && span < SUSPICIOUS_SPAN;
+
+		return (
+			<tr
+				key={`sweep-row-${i}`}
+				className={!assigned ? 'text-muted' : undefined}
+			>
+				<td>{t('HETrigger:sweep-channel-label', { channel: i })}</td>
+				<td>{actionLabel}</td>
+				<td style={{ minWidth: '10rem' }}>
+					<ProgressBar
+						now={rowTravel}
+						variant={moved ? 'success' : 'warning'}
+					/>
+				</td>
+				<td>{t('HETrigger:sweep-span-label', { span })}</td>
+				<td>
+					{moved
+						? t('HETrigger:sweep-seen-label')
+						: t('HETrigger:sweep-not-seen-label')}
+					{suspicious && ' ⚠️'}
+				</td>
+			</tr>
+		);
+	};
+
+	const sweepView = () => (
+		<Row className="mb-3">
+			<Col xs={12} className="mb-3">
+				{t('HETrigger:sweep-instructions-text')}
+			</Col>
+			<Col xs={12} className="mb-3">
+				<strong>
+					{t('HETrigger:sweep-progress-text', {
+						seen: sweepSeenCount,
+						total: sweepAssigned.length,
+					})}
+				</strong>
+			</Col>
+			{sweepUnseen.length > 0 && (
+				<Col xs={12} className="mb-3">
+					<Alert variant="warning" className="mb-0">
+						{t('HETrigger:sweep-inert-warning')}
+					</Alert>
+				</Col>
+			)}
+			{sweepSuspicious.length > 0 && (
+				<Col xs={12} className="mb-3">
+					<Alert variant="warning" className="mb-0">
+						{t('HETrigger:sweep-suspicious-warning', {
+							channels: sweepSuspicious.join(', '),
+						})}
+					</Alert>
+				</Col>
+			)}
+			<Col xs={12}>
+				<Table bordered size="sm">
+					<thead>
+						<tr>
+							<th>{t('HETrigger:channel-label')}</th>
+							<th>{t('HETrigger:sweep-action-label')}</th>
+							<th>{t('HETrigger:activation-reading-text')}</th>
+							<th></th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>
+						{Array.from({ length: sweepChannelCount }, (_, i) => sweepRow(i))}
+					</tbody>
+				</Table>
+			</Col>
+		</Row>
+	);
+
 	useEffect(() => {
-		if ( showModal === true ) {
-			startCalibration();
-			startReadingCalibrationLoop();
-			updateTitle();
+		if (showModal === true) {
+			if (calibrateAllLoop) {
+				startSweep();
+			} else {
+				startCalibration();
+				startReadingCalibrationLoop();
+				updateTitle();
+			}
 		}
 	}, [showModal]);
 
+	// Safety net: if the modal component itself unmounts (e.g. navigating
+	// away) while a sweep is running, do not leave the session active on
+	// the device.
+	useEffect(() => {
+		return () => {
+			if (sweepSessionActive.current) {
+				WebApi.cancelHETriggerSweep();
+			}
+		};
+	}, []);
+
 	return (
 		<>
-			<Modal className="modal-lg" contentClassName="he-modal" centered show={showModal}
+			<Modal
+				className="modal-lg"
+				contentClassName="he-modal"
+				centered
+				show={showModal}
 				onClose={() => closeModal()}
 				onHide={() => closeModal()}
 			>
 				<Modal.Header closeButton>
-					<Modal.Title className="me-auto">{t(`HETrigger:calibration-header-text`)} - {title}</Modal.Title>
+					<Modal.Title className="me-auto">
+						{calibrateAllLoop
+							? t('HETrigger:sweep-header-text')
+							: `${t('HETrigger:calibration-header-text')} - ${title}`}
+					</Modal.Title>
 				</Modal.Header>
 				<Modal.Body>
-					{firstStep()}
-					{secondStep()}
-					{thirdStep()}
-					{manualAdjustments()}
+					{calibrateAllLoop ? (
+						sweepView()
+					) : (
+						<>
+							{firstStep()}
+							{secondStep()}
+							{thirdStep()}
+							{manualAdjustments()}
+						</>
+					)}
 				</Modal.Body>
 				<Modal.Footer>
-					<Button onClick={() => {
-						setVoltageIdle(voltage);
-						updateCalibrationRead(1);
-					}} hidden={calibrationStep !== 0}>
-						<Spinner
-							as="span"
-							animation="grow"
-							size="sm"
-							role="status"
-							aria-hidden="true"
-						/> {t(`HETrigger:calibrate-idle-button`)}
-					</Button>
-					<Button onClick={() => {
-						// Recording the pressed reading as measured is what
-						// encodes direction, so a sensor that reads high at rest
-						// needs no polarity flag.
-						setVoltagePressed(voltage);
-						setActuationPoint(450);
-						setDeactuationPoint(0);
-						setPressSensitivity(30);
-						setReleaseSensitivity(0);
-						setRtMode(RT_OFF);
-						updateCalibrationRead(2);
-					}} hidden={calibrationStep !== 1}>
-						<Spinner
-							as="span"
-							animation="grow"
-							size="sm"
-							role="status"
-							aria-hidden="true"
-							variant="success"
-						/> {t(`HETrigger:calibrate-pressed-button`)}
-					</Button>
-					<Button
-						variant="success"
-						onClick={() => saveCalibration()}
-						hidden={calibrationStep < 2}
-					>
-						{nextTarget !== -1 ? t(`HETrigger:next-calibration-text`): t(`HETrigger:finish-calibration-text`)}
-					</Button>
-					<Button onClick={() => {
-							updateCalibrationRead(previousStep.current);
-						}}
-						hidden={calibrationStep !== 3}>
-						{t(`HETrigger:calibration-back-button`)}
-					</Button>
-					<Button onClick={() => {
-							previousStep.current = calibrationStep;
-							updateCalibrationRead(3);
-						}}
-						hidden={calibrationStep === 3}>
-						{t(`HETrigger:manual-text`)}
-					</Button>
+					{calibrateAllLoop ? (
+						<>
+							<Button variant="secondary" onClick={() => closeModal()}>
+								{t('HETrigger:sweep-cancel-button')}
+							</Button>
+							<Button variant="success" onClick={() => commitSweep()}>
+								{t('HETrigger:sweep-save-button')}
+							</Button>
+						</>
+					) : (
+						<>
+							<Button
+								onClick={() => {
+									setVoltageIdle(voltage);
+									updateCalibrationRead(1);
+								}}
+								hidden={calibrationStep !== 0}
+							>
+								<Spinner
+									as="span"
+									animation="grow"
+									size="sm"
+									role="status"
+									aria-hidden="true"
+								/>{' '}
+								{t(`HETrigger:calibrate-idle-button`)}
+							</Button>
+							<Button
+								onClick={() => {
+									// Recording the pressed reading as measured is what
+									// encodes direction, so a sensor that reads high at rest
+									// needs no polarity flag.
+									setVoltagePressed(voltage);
+									setActuationPoint(450);
+									setDeactuationPoint(0);
+									setPressSensitivity(30);
+									setReleaseSensitivity(0);
+									setRtMode(RT_OFF);
+									updateCalibrationRead(2);
+								}}
+								hidden={calibrationStep !== 1}
+							>
+								<Spinner
+									as="span"
+									animation="grow"
+									size="sm"
+									role="status"
+									aria-hidden="true"
+									variant="success"
+								/>{' '}
+								{t(`HETrigger:calibrate-pressed-button`)}
+							</Button>
+							<Button
+								variant="success"
+								onClick={() => saveCalibration()}
+								hidden={calibrationStep < 2}
+							>
+								{t(`HETrigger:finish-calibration-text`)}
+							</Button>
+							<Button
+								onClick={() => {
+									updateCalibrationRead(previousStep.current);
+								}}
+								hidden={calibrationStep !== 3}
+							>
+								{t(`HETrigger:calibration-back-button`)}
+							</Button>
+							<Button
+								onClick={() => {
+									previousStep.current = calibrationStep;
+									updateCalibrationRead(3);
+								}}
+								hidden={calibrationStep === 3}
+							>
+								{t(`HETrigger:manual-text`)}
+							</Button>
+						</>
+					)}
 				</Modal.Footer>
 			</Modal>
 		</>

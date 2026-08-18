@@ -2,6 +2,7 @@ import { create } from 'zustand';
 
 import WebApi from '../Services/WebApi';
 import { PinActionValues } from '../Data/Pins';
+import { tenthsToWholePercent } from '../Services/Utilities';
 
 // Travel values are tenths of a percent of the calibrated idle-to-pressed
 // span, 0-1000, matching the firmware. idle and pressed stay in raw ADC counts
@@ -35,8 +36,10 @@ type Actions = {
 
 export const TRAVEL_MAX = 1000;
 
-// Travel is stored as tenths of a percent, so 450 reads as 45.0%
-export const formatTravel = (value: number) => `${(value / 10).toFixed(1)}%`;
+// Travel is stored as tenths of a percent, but the UI only shows whole
+// percent, so 450 reads as 45%.
+export const formatTravel = (value: number) =>
+	`${tenthsToWholePercent(value)}%`;
 
 const DEFAULT_TRIGGER: Trigger = {
 	action: -10,
@@ -67,7 +70,7 @@ const useHETriggerStore = create<State & Actions>()((set, get) => ({
 			loadingTriggers: false,
 		}));
 	},
-	setHETrigger: ({ id, ...trigger}) => {
+	setHETrigger: ({ id, ...trigger }) => {
 		set((state) => {
 			const newTriggers = [...state.triggers];
 			if (newTriggers[id]) {
