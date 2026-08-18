@@ -284,7 +284,18 @@ const ProfileHESettings = memo(function ProfileHESettings({
 	return (
 		<div className="mt-2">
 			<FormCheck
-				label={t('PinMapping:profile-he-override')}
+				label={
+					<OverlayTrigger
+						overlay={
+							<Tooltip>{t('PinMapping:profile-he-override-tooltip')}</Tooltip>
+						}
+					>
+						<div className="d-flex gap-1">
+							<label>{t('PinMapping:profile-he-override')}</label>
+							<InfoCircle />
+						</div>
+					</OverlayTrigger>
+				}
 				type="switch"
 				checked={Boolean(settings.heEnabled)}
 				onChange={onToggle}
@@ -292,7 +303,18 @@ const ProfileHESettings = memo(function ProfileHESettings({
 			{settings.heEnabled && (
 				<Row className="mt-2">
 					<Col md={6}>
-						<Form.Label>{t('PinMapping:profile-he-actuation')}</Form.Label>
+						<OverlayTrigger
+							overlay={
+								<Tooltip>
+									{t('PinMapping:profile-he-actuation-tooltip')}
+								</Tooltip>
+							}
+						>
+							<div className="d-flex gap-1">
+								<Form.Label>{t('PinMapping:profile-he-actuation')}</Form.Label>
+								<InfoCircle />
+							</div>
+						</OverlayTrigger>
 						<Form.Control
 							type="number"
 							min={0}
@@ -302,7 +324,20 @@ const ProfileHESettings = memo(function ProfileHESettings({
 						/>
 					</Col>
 					<Col md={6}>
-						<Form.Label>{t('PinMapping:profile-he-deactuation')}</Form.Label>
+						<OverlayTrigger
+							overlay={
+								<Tooltip>
+									{t('PinMapping:profile-he-deactuation-tooltip')}
+								</Tooltip>
+							}
+						>
+							<div className="d-flex gap-1">
+								<Form.Label>
+									{t('PinMapping:profile-he-deactuation')}
+								</Form.Label>
+								<InfoCircle />
+							</div>
+						</OverlayTrigger>
 						<Form.Control
 							type="number"
 							min={0}
@@ -312,7 +347,16 @@ const ProfileHESettings = memo(function ProfileHESettings({
 						/>
 					</Col>
 					<Col md={6} className="mt-2">
-						<Form.Label>{t('PinMapping:profile-he-rt-mode')}</Form.Label>
+						<OverlayTrigger
+							overlay={
+								<Tooltip>{t('PinMapping:profile-he-rt-mode-tooltip')}</Tooltip>
+							}
+						>
+							<div className="d-flex gap-1">
+								<Form.Label>{t('PinMapping:profile-he-rt-mode')}</Form.Label>
+								<InfoCircle />
+							</div>
+						</OverlayTrigger>
 						<Form.Select
 							value={settings.heRtMode}
 							onChange={(event) =>
@@ -331,9 +375,20 @@ const ProfileHESettings = memo(function ProfileHESettings({
 					{settings.heRtMode > 0 && (
 						<>
 							<Col md={6} className="mt-2">
-								<Form.Label>
-									{t('PinMapping:profile-he-press-sensitivity')}
-								</Form.Label>
+								<OverlayTrigger
+									overlay={
+										<Tooltip>
+											{t('PinMapping:profile-he-press-sensitivity-tooltip')}
+										</Tooltip>
+									}
+								>
+									<div className="d-flex gap-1">
+										<Form.Label>
+											{t('PinMapping:profile-he-press-sensitivity')}
+										</Form.Label>
+										<InfoCircle />
+									</div>
+								</OverlayTrigger>
 								<Form.Control
 									type="number"
 									min={0}
@@ -343,9 +398,20 @@ const ProfileHESettings = memo(function ProfileHESettings({
 								/>
 							</Col>
 							<Col md={6} className="mt-2">
-								<Form.Label>
-									{t('PinMapping:profile-he-release-sensitivity')}
-								</Form.Label>
+								<OverlayTrigger
+									overlay={
+										<Tooltip>
+											{t('PinMapping:profile-he-release-sensitivity-tooltip')}
+										</Tooltip>
+									}
+								>
+									<div className="d-flex gap-1">
+										<Form.Label>
+											{t('PinMapping:profile-he-release-sensitivity')}
+										</Form.Label>
+										<InfoCircle />
+									</div>
+								</OverlayTrigger>
 								<Form.Control
 									type="number"
 									min={0}
