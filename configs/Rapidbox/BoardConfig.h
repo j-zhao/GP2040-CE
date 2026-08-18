@@ -110,9 +110,9 @@
 #define DISPLAY_MACRO_MODE 0
 #define DISPLAY_PROFILE_MODE 1
 
-// Input history is off, so the layout keeps the full screen. The position and
-// length below only apply if it is turned on later.
-#define INPUT_HISTORY_ENABLED 0
+// Input history takes the bottom row, which shrinks the button layout to the
+// band above it.
+#define INPUT_HISTORY_ENABLED 1
 #define INPUT_HISTORY_LENGTH 21
 #define INPUT_HISTORY_COL 0
 #define INPUT_HISTORY_ROW 7
