@@ -14,17 +14,11 @@ void GPLever::draw() {
     int leverY = this->y;
 
     // scale to viewport
-    double scaleX = this->getScaleX();
-    double scaleY = this->getScaleY();
-
-    // set scale on X & Y to be proportionate if either is 0
-    if ((scaleX > 0.0f) & ((scaleY == 0.0f) || (scaleY == 1.0f))) {
-        scaleY = scaleX;
-    } else if (((scaleX == 0.0f) || (scaleX == 1.0f)) & (scaleY > 0.0f)) {
-        scaleX = scaleY;
-    }
-
-    uint16_t offsetX = ((getRenderer()->getDriver()->getMetrics()->width - (uint16_t)((double)getRenderer()->getDriver()->getMetrics()->width * scaleX)) / 2);
+    GPViewportTransform transform = this->getViewportTransform();
+    double scaleX = transform.scaleX;
+    double scaleY = transform.scaleY;
+    uint16_t offsetX = transform.offsetX;
+    uint16_t offsetY = transform.offsetY;
 
     if (scaleX > 0.0f) {
         baseX = ((this->x) * scaleX + this->getViewport().left) + offsetX;
@@ -32,8 +26,8 @@ void GPLever::draw() {
     }
 
     if (scaleY > 0.0f) {
-        baseY = ((this->y) * scaleY + this->getViewport().top);
-        leverY = ((this->y) * scaleY + this->getViewport().top);
+        baseY = ((this->y) * scaleY + this->getViewport().top) + offsetY;
+        leverY = ((this->y) * scaleY + this->getViewport().top) + offsetY;
     }
 
     int baseRadius = (int)(((double)this->_radius * 1.00) * scaleX);
