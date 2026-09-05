@@ -1618,7 +1618,7 @@ std::string setHETriggerOptions()
 
     calibrationSmoothing = doc["heTriggerSmoothing"];
     calibrationSmoothingFactor = doc["heTriggerSmoothingFactor"];
-    calibrationMuxSettleMicros = doc["heTriggerMuxSettleMicros"];
+    calibrationMuxSettleMicros = heClampMuxSettleMicros(doc["heTriggerMuxSettleMicros"].as<int64_t>());
     ema_smoothing = (float)calibrationSmoothingFactor / 100.f; // 99 = max smoothing factor
 
     for (int i = 0; i < 4; i++) {
@@ -1928,6 +1928,7 @@ std::string getHETriggerState()
 #define HETRIGGER_SWEEP_SAMPLES 4
 
 static bool sweepActive = false;
+static uint32_t sweepSessionId = 0;
 static uint16_t sweepBaseline[HETRIGGER_COUNT];
 static uint16_t sweepMinRaw[HETRIGGER_COUNT];
 static uint16_t sweepMaxRaw[HETRIGGER_COUNT];
@@ -1968,8 +1969,11 @@ std::string startHETriggerSweep()
         sweepMaxRaw[he] = raw[he];
     }
     sweepActive = true;
+    if (++sweepSessionId == 0)
+        sweepSessionId = 1;
 
     doc["active"] = true;
+    doc["sessionId"] = sweepSessionId;
     return serialize_json(doc);
 }
 
@@ -1997,6 +2001,7 @@ std::string getHETriggerSweep()
                    sweepSelectCount, HETRIGGER_SWEEP_SAMPLES, raw, minRaw, maxRaw);
 
     doc["active"] = true;
+    doc["sessionId"] = sweepSessionId;
     JsonArray channelList = doc.createNestedArray("channels");
     for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
         if (sweepScanned[he]) {
@@ -2036,7 +2041,7 @@ std::string commitHETriggerSweep()
     const size_t capacity = JSON_OBJECT_SIZE(4);
     DynamicJsonDocument doc(capacity);
 
-    if (!sweepActive) {
+    if (!sweepActive || requestDoc["sessionId"] != sweepSessionId) {
         doc["active"] = false;
         doc["saved"] = false;
         return serialize_json(doc);
@@ -2077,12 +2082,14 @@ std::string commitHETriggerSweep()
 // Abandons the in-progress sweep without touching stored calibration.
 std::string cancelHETriggerSweep()
 {
+    DynamicJsonDocument requestDoc = get_post_data();
     const size_t capacity = JSON_OBJECT_SIZE(4);
     DynamicJsonDocument doc(capacity);
 
-    sweepActive = false;
+    if (sweepActive && requestDoc["sessionId"] == sweepSessionId)
+        sweepActive = false;
 
-    doc["active"] = false;
+    doc["active"] = sweepActive;
     return serialize_json(doc);
 }
 
