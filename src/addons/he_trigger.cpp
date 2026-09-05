@@ -212,37 +212,7 @@ void HETriggerAddon::updateChannel(const ScanEntry& entry, uint16_t raw) {
     const uint16_t travel = heTravelFromRaw((int32_t)(state.smoothedQ8 >> 8), entry.idle, entry.scaleQ10);
     state.travel = travel;
 
-    if ( th.rtMode == HERapidTriggerMode::HE_RT_OFF ) {
-        // Releasing on the threshold itself rather than below it would make a
-        // key resting exactly on the actuation point alternate every frame.
-        state.active = state.active ? (travel >= th.deactuation) : (travel >= th.actuation);
-        return;
-    }
-
-    // Rapid trigger works off direction of travel rather than a fixed point:
-    // press once the key moves down far enough from its shallowest point, and
-    // release once it moves up far enough from its deepest point.
-    if ( state.active ) {
-        if ( travel > state.peak )
-            state.peak = travel;
-
-        // Either moving up far enough from the deepest point, or coming back
-        // past the release floor, releases the key. The floor is what stops a
-        // release sensitivity larger than the depth reached from latching it.
-        if ( (travel + th.releaseSensitivity <= state.peak) || (travel < th.releaseFloor) ) {
-            state.active = false;
-            state.valley = travel;
-        }
-    } else {
-        if ( travel < state.valley )
-            state.valley = travel;
-
-        const bool armed = (th.rtMode == HERapidTriggerMode::HE_RT_CONTINUOUS) || (travel >= th.actuation);
-        if ( armed && (travel >= state.valley + th.pressSensitivity) ) {
-            state.active = true;
-            state.peak = travel;
-        }
-    }
+    heUpdateDigitalState(state.active, state.peak, state.valley, travel, th);
 }
 
 // Depth based SOCD: of two opposing channels, the one pressed deeper wins.
