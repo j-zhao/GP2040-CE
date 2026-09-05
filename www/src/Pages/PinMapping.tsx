@@ -317,7 +317,7 @@ const ProfileHESettings = memo(function ProfileHESettings({
 						</OverlayTrigger>
 						<Form.Control
 							type="number"
-							min={0}
+							min={1}
 							max={100}
 							value={tenthsToWholePercent(settings.heActuationPoint)}
 							onChange={setPercent('heActuationPoint')}

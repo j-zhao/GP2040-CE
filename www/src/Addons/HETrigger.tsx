@@ -172,7 +172,7 @@ export const HETriggerScheme = {
 	heTriggerNoiseFloor: yup
 		.number()
 		.label('Noise Floor')
-		.validateRangeWhenValue('HETriggerEnabled', 0, 1000),
+		.validateRangeWhenValue('HETriggerEnabled', 0, 100),
 	heTriggerAnalogDeadzone: yup
 		.number()
 		.label('Analog Deadzone')
@@ -772,7 +772,7 @@ const HETrigger = ({
 							} as React.ChangeEvent<HTMLInputElement>);
 						}}
 						min={0}
-						max={100}
+						max={10}
 					/>
 					<FormControl
 						type="number"
