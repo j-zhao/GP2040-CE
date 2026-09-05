@@ -34,6 +34,7 @@
 #include "lwip/apps/httpd.h"
 #include "lwip/def.h"
 #include "lwip/mem.h"
+#include "addons/he_trigger.h"
 #include "addons/input_macro.h"
 
 #define PATH_CGI_ACTION "/cgi/action"
@@ -552,6 +553,53 @@ std::string setSplashImage()
     return serialize_json(doc);
 }
 
+// Read a travel value from the web configurator, clamped to 0-1000 tenths of a
+// percent. A missing key leaves the stored value alone, which is what lets a
+// backup taken before travel percent existed restore without zeroing thresholds.
+static void readTravel(uint16_t& value, JsonObject doc, const char* key)
+{
+    if (doc[key] == nullptr) return;
+
+    const int32_t raw = doc[key];
+    if (raw < 0) value = 0;
+    else if (raw > HETRIGGER_TRAVEL_MAX) value = HETRIGGER_TRAVEL_MAX;
+    else value = (uint16_t)raw;
+}
+
+// Per-profile hall effect overrides. Shared by the profile and pin mapping APIs
+// so the two cannot drift apart.
+static void readHEProfileSettings(HEProfileSettings& settings, JsonObject doc)
+{
+    if (doc["heEnabled"] != nullptr) {
+        settings.enabled = doc["heEnabled"];
+    }
+    // An actuation point of zero would be satisfied by a key at rest, so it is
+    // rejected rather than stored
+    if (doc["heActuationPoint"] > 0) {
+        readTravel(settings.actuationPoint, doc, "heActuationPoint");
+    }
+    readTravel(settings.deactuationPoint, doc, "heDeactuationPoint");
+    readTravel(settings.rtPressSensitivity, doc, "heRtPressSensitivity");
+    readTravel(settings.rtReleaseSensitivity, doc, "heRtReleaseSensitivity");
+    if (doc["heRtMode"] != nullptr) {
+        const int32_t rtMode = doc["heRtMode"];
+        if (rtMode >= HERapidTriggerMode::HE_RT_OFF && rtMode <= HERapidTriggerMode::HE_RT_CONTINUOUS) {
+            settings.rtMode = (HERapidTriggerMode)rtMode;
+        }
+    }
+    ConfigUtils::sanitizeHEProfileSettings(settings);
+}
+
+static void writeHEProfileSettings(JsonObject doc, const HEProfileSettings& settings)
+{
+    doc["heEnabled"] = settings.enabled;
+    doc["heActuationPoint"] = settings.actuationPoint;
+    doc["heDeactuationPoint"] = settings.deactuationPoint;
+    doc["heRtMode"] = (int)settings.rtMode;
+    doc["heRtPressSensitivity"] = settings.rtPressSensitivity;
+    doc["heRtReleaseSensitivity"] = settings.rtReleaseSensitivity;
+}
+
 std::string setProfileOptions()
 {
     DynamicJsonDocument doc = get_post_data();
@@ -587,6 +635,16 @@ std::string setProfileOptions()
         strncpy(profileOptions.gpioMappingsSets[altsIndex].profileLabel, alt["profileLabel"], profileLabelSize - 1);
         profileOptions.gpioMappingsSets[altsIndex].profileLabel[profileLabelSize - 1] = '\0';
         profileOptions.gpioMappingsSets[altsIndex].enabled = alt["enabled"];
+        if (alt["socdEnabled"] != nullptr) {
+            profileOptions.gpioMappingsSets[altsIndex].settings.socdEnabled = alt["socdEnabled"];
+        }
+        if (alt["socdMode"] != nullptr) {
+            const int socdMode = alt["socdMode"];
+            if (socdMode >= SOCD_MODE_UP_PRIORITY && socdMode <= SOCD_MODE_BYPASS) {
+                profileOptions.gpioMappingsSets[altsIndex].settings.socdMode = (SOCDMode)socdMode;
+            }
+        }
+        readHEProfileSettings(profileOptions.gpioMappingsSets[altsIndex].settings.heSettings, alt);
 
         profileOptions.gpioMappingsSets_count = ++altsIndex;
         if (altsIndex > 4) break;
@@ -598,7 +656,8 @@ std::string setProfileOptions()
 
 std::string getProfileOptions()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    // 5 profiles of 30 pins plus the per-profile SOCD and hall effect settings
+    const size_t capacity = JSON_OBJECT_SIZE(740);
     DynamicJsonDocument doc(capacity);
 
     const auto writePinDoc = [&](const int item, const char* key, const GpioMappingInfo& value) -> void
@@ -651,6 +710,9 @@ std::string getProfileOptions()
         writePinDoc(i, "pin29", profileOptions.gpioMappingsSets[i].pins[29]);
         writeDoc(doc, "alternativePinMappings", i, "profileLabel", profileOptions.gpioMappingsSets[i].profileLabel);
         doc["alternativePinMappings"][i]["enabled"] = profileOptions.gpioMappingsSets[i].enabled;
+        doc["alternativePinMappings"][i]["socdEnabled"] = profileOptions.gpioMappingsSets[i].settings.socdEnabled;
+        doc["alternativePinMappings"][i]["socdMode"] = (int)profileOptions.gpioMappingsSets[i].settings.socdMode;
+        writeHEProfileSettings(doc["alternativePinMappings"][i], profileOptions.gpioMappingsSets[i].settings.heSettings);
     }
 
     return serialize_json(doc);
@@ -1139,6 +1201,16 @@ std::string setPinMappings()
     strncpy(gpioMappings.profileLabel, doc["profileLabel"], profileLabelSize - 1);
     gpioMappings.profileLabel[profileLabelSize - 1] = '\0';
     gpioMappings.enabled = doc["enabled"];
+    if (doc["socdEnabled"] != nullptr) {
+        gpioMappings.settings.socdEnabled = doc["socdEnabled"];
+    }
+    if (doc["socdMode"] != nullptr) {
+        const int socdMode = doc["socdMode"];
+        if (socdMode >= SOCD_MODE_UP_PRIORITY && socdMode <= SOCD_MODE_BYPASS) {
+            gpioMappings.settings.socdMode = (SOCDMode)socdMode;
+        }
+    }
+    readHEProfileSettings(gpioMappings.settings.heSettings, doc.as<JsonObject>());
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 
@@ -1147,7 +1219,7 @@ std::string setPinMappings()
 
 std::string getPinMappings()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    const size_t capacity = JSON_OBJECT_SIZE(510);
     DynamicJsonDocument doc(capacity);
 
     GpioMappings& gpioMappings = Storage::getInstance().getGpioMappings();
@@ -1192,6 +1264,9 @@ std::string getPinMappings()
 
     writeDoc(doc, "profileLabel", gpioMappings.profileLabel);
     doc["enabled"] = gpioMappings.enabled;
+    doc["socdEnabled"] = gpioMappings.settings.socdEnabled;
+    doc["socdMode"] = (int)gpioMappings.settings.socdMode;
+    writeHEProfileSettings(doc.as<JsonObject>(), gpioMappings.settings.heSettings);
 
     return serialize_json(doc);
 }
@@ -1522,6 +1597,7 @@ static Pin_t calibrationSelectPins[4];
 static Pin_t calibrationADCPins[4];
 static bool calibrationSmoothing = false;
 static uint32_t calibrationSmoothingFactor = 0;
+static uint32_t calibrationMuxSettleMicros = 0;
 static float ema_smoothing;
 static uint32_t smoothingRead = 0;
 
@@ -1542,6 +1618,7 @@ std::string setHETriggerOptions()
 
     calibrationSmoothing = doc["heTriggerSmoothing"];
     calibrationSmoothingFactor = doc["heTriggerSmoothingFactor"];
+    calibrationMuxSettleMicros = heClampMuxSettleMicros(doc["heTriggerMuxSettleMicros"].as<int64_t>());
     ema_smoothing = (float)calibrationSmoothingFactor / 100.f; // 99 = max smoothing factor
 
     for (int i = 0; i < 4; i++) {
@@ -1645,7 +1722,8 @@ std::string getHETriggerVoltage()
 
 std::string getHETriggerCalibrations()
 {
-    const size_t capacity = JSON_OBJECT_SIZE(500);
+    // 32 channels of 9 members, plus the array slots
+    const size_t capacity = JSON_OBJECT_SIZE(600);
     DynamicJsonDocument doc(capacity);
 
     HETriggerInfo * heTriggers = Storage::getInstance().getAddonOptions().heTriggerOptions.triggers;
@@ -1655,12 +1733,13 @@ std::string getHETriggerCalibrations()
         JsonObject trigger = triggerList.createNestedObject();
         trigger["action"] = heTriggers[i].action;
         trigger["idle"] = heTriggers[i].idle;
-        trigger["active"] = heTriggers[i].active;
         trigger["pressed"] = heTriggers[i].pressed;
-        trigger["is_polarized"] = heTriggers[i].is_polarized;
-        trigger["release"] = heTriggers[i].release;
-        trigger["noise"] = heTriggers[i].noise;
-        trigger["rapidTrigger"] = heTriggers[i].rapidTrigger;
+        trigger["actuationPoint"] = heTriggers[i].actuationPoint;
+        trigger["deactuationPoint"] = heTriggers[i].deactuationPoint;
+        trigger["rtMode"] = heTriggers[i].rtMode;
+        trigger["rtPressSensitivity"] = heTriggers[i].rtPressSensitivity;
+        trigger["rtReleaseSensitivity"] = heTriggers[i].rtReleaseSensitivity;
+        trigger["socdPartner"] = heTriggers[i].socdPartner;
     }
 
     return serialize_json(doc);
@@ -1672,20 +1751,356 @@ std::string setHETriggerCalibrations()
     DynamicJsonDocument doc = get_post_data();
     HETriggerInfo * heTriggers = Storage::getInstance().getAddonOptions().heTriggerOptions.triggers;
 
+    // Every field is presence guarded, so restoring a backup taken before travel
+    // percent existed leaves the migrated thresholds alone instead of zeroing
+    // them, which would leave every channel actuating at rest.
     for(int i = 0; i < 32; i++) {
-        heTriggers[i].action = doc["triggers"][i]["action"];
-        heTriggers[i].idle = doc["triggers"][i]["idle"];
-        heTriggers[i].active = doc["triggers"][i]["active"];
-        heTriggers[i].pressed = doc["triggers"][i]["pressed"];
-        heTriggers[i].is_polarized = doc["triggers"][i]["is_polarized"];
-        heTriggers[i].release = doc["triggers"][i]["release"];
-        heTriggers[i].noise = doc["triggers"][i]["noise"];
-        heTriggers[i].rapidTrigger = doc["triggers"][i]["rapidTrigger"];
+        JsonObject trigger = doc["triggers"][i];
+        if (trigger.isNull())
+            continue;
+
+        if (trigger["action"] != nullptr) {
+            heTriggers[i].action = trigger["action"];
+        }
+        if (trigger["idle"] != nullptr) {
+            heTriggers[i].idle = trigger["idle"];
+        }
+        if (trigger["pressed"] != nullptr) {
+            heTriggers[i].pressed = trigger["pressed"];
+        }
+        // An actuation point of zero would be satisfied by a key at rest
+        if (trigger["actuationPoint"] > 0) {
+            readTravel(heTriggers[i].actuationPoint, trigger, "actuationPoint");
+        }
+        readTravel(heTriggers[i].deactuationPoint, trigger, "deactuationPoint");
+        readTravel(heTriggers[i].rtPressSensitivity, trigger, "rtPressSensitivity");
+        readTravel(heTriggers[i].rtReleaseSensitivity, trigger, "rtReleaseSensitivity");
+        if (trigger["rtMode"] != nullptr) {
+            const int32_t rtMode = trigger["rtMode"];
+            if (rtMode >= HERapidTriggerMode::HE_RT_OFF && rtMode <= HERapidTriggerMode::HE_RT_CONTINUOUS) {
+                heTriggers[i].rtMode = (HERapidTriggerMode)rtMode;
+            }
+        }
+        // 0 is no partner, otherwise the partner channel index plus one
+        if (trigger["socdPartner"] != nullptr) {
+            const int32_t socdPartner = trigger["socdPartner"];
+            if (socdPartner >= 0 && socdPartner <= HETRIGGER_COUNT) {
+                heTriggers[i].socdPartner = (uint16_t)socdPartner;
+            }
+        }
     }
 
     Storage::getInstance().getAddonOptions().heTriggerOptions.triggers_count = 32;
+    ConfigUtils::sanitizeHETriggerOptions(Storage::getInstance().getAddonOptions().heTriggerOptions);
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 
+    return serialize_json(doc);
+}
+
+// Resolves the mux/select pin layout for the current options and programs the
+// GPIOs, the way the calibration modal and the live readout both need before
+// they can touch the ADC. Returns false when the options cannot address any
+// channel at all, which the caller reports as an error instead of sampling.
+static bool heInitPins(int32_t muxChannels, const Pin_t adcPins[4], const Pin_t selectPins[4], int& selectCount)
+{
+    if (!heValidMuxChannels(muxChannels))
+        return false;
+
+    switch (muxChannels) {
+        case 4: selectCount = 2; break;
+        case 8: selectCount = 3; break;
+        case 16: selectCount = 4; break;
+        default: selectCount = 0; break;
+    }
+
+    for (int i = 0; i < 4; i++) {
+        if (adcPins[i] >= 26 && adcPins[i] <= 29) adc_gpio_init(adcPins[i]);
+    }
+    for (int i = 0; i < selectCount; i++) {
+        if (selectPins[i] >= 0 && selectPins[i] <= 29) {
+            gpio_init(selectPins[i]);
+            gpio_set_dir(selectPins[i], GPIO_OUT);
+        }
+    }
+    return true;
+}
+
+static bool heInitPins(const HETriggerOptions& options, Pin_t adcPins[4], Pin_t selectPins[4], int& selectCount)
+{
+    adcPins[0] = (Pin_t)options.muxADCPin0;
+    adcPins[1] = (Pin_t)options.muxADCPin1;
+    adcPins[2] = (Pin_t)options.muxADCPin2;
+    adcPins[3] = (Pin_t)options.muxADCPin3;
+    selectPins[0] = (Pin_t)options.selectPin0;
+    selectPins[1] = (Pin_t)options.selectPin1;
+    selectPins[2] = (Pin_t)options.selectPin2;
+    selectPins[3] = (Pin_t)options.selectPin3;
+
+    return heInitPins(options.muxChannels, adcPins, selectPins, selectCount);
+}
+
+// Walks every channel once, selecting its mux input, letting the mux settle,
+// and sampling the ADC samplesPerChannel times. Shared by the live travel
+// readout and the calibration sweep so there is one copy of the mux walk.
+// minOut/maxOut are optional; pass null when only the latest sample matters.
+static void heScanChannels(int32_t muxChannels, uint32_t settleMicros,
+                            const Pin_t adcPins[4], const Pin_t selectPins[4], int selectCount,
+                            uint8_t samplesPerChannel, uint16_t* rawOut,
+                            uint16_t* minOut, uint16_t* maxOut)
+{
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        const uint32_t mux = he / muxChannels;
+        if (mux > 3 || adcPins[mux] < 26 || adcPins[mux] > 29) {
+            rawOut[he] = 0;
+            if (minOut) minOut[he] = 0;
+            if (maxOut) maxOut[he] = 0;
+            continue;
+        }
+
+        const uint32_t channel = he % muxChannels;
+        for (int i = 0; i < selectCount; i++) {
+            if (selectPins[i] >= 0 && selectPins[i] <= 29) {
+                gpio_put(selectPins[i], (channel >> i) & 0x01);
+            }
+        }
+        adc_select_input(adcPins[mux] - 26);
+        busy_wait_us(settleMicros);
+
+        uint16_t raw = adc_read();
+        uint16_t lo = raw;
+        uint16_t hi = raw;
+        for (uint8_t s = 1; s < samplesPerChannel; s++) {
+            raw = adc_read();
+            if (raw < lo) lo = raw;
+            if (raw > hi) hi = raw;
+        }
+        rawOut[he] = raw;
+        if (minOut) minOut[he] = lo;
+        if (maxOut) maxOut[he] = hi;
+    }
+}
+
+// Live travel for the web configurator, as tenths of a percent per channel.
+//
+// The add-on cannot supply this: the main loop skips PreprocessAddons entirely
+// while the web configurator is up (src/gp2040.cpp), so nothing would ever
+// refresh. Nothing else owns the ADC in config mode, so this samples the
+// channels itself, using the saved pin configuration rather than the temporary
+// one that setHETriggerOptions programs for the calibration modal.
+std::string getHETriggerState()
+{
+    const size_t capacity = JSON_OBJECT_SIZE(100);
+    DynamicJsonDocument doc(capacity);
+
+    const HETriggerOptions& options = Storage::getInstance().getAddonOptions().heTriggerOptions;
+    JsonArray travelList = doc.createNestedArray("travel");
+
+    Pin_t adcPins[4];
+    Pin_t selectPins[4];
+    int selectCount;
+    if (!heInitPins(options, adcPins, selectPins, selectCount)) {
+        doc["error"] = "mux channels incorrect";
+        return serialize_json(doc);
+    }
+
+    uint16_t raw[HETRIGGER_COUNT];
+    heScanChannels(options.muxChannels, options.muxSettleMicros, adcPins, selectPins,
+                   selectCount, 1, raw, nullptr, nullptr);
+
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        const HETriggerInfo& trigger = options.triggers[he];
+        const uint32_t mux = he / options.muxChannels;
+        const int32_t scaleQ10 = heTravelScaleQ10(trigger.idle, trigger.pressed);
+
+        if (mux > 3 || adcPins[mux] < 26 || adcPins[mux] > 29 || scaleQ10 == 0) {
+            travelList.add(0);
+            continue;
+        }
+
+        travelList.add(heTravelFromRaw(raw[he], trigger.idle, scaleQ10));
+    }
+
+    return serialize_json(doc);
+}
+
+// Capture extrema between HTTP requests on the network driver's core.
+#define HETRIGGER_SWEEP_SAMPLES 4
+#define HETRIGGER_SWEEP_INTERVAL_US 1000
+
+static bool sweepActive = false;
+static uint32_t sweepSessionId = 0;
+static uint32_t sweepSampledAt = 0;
+static uint16_t sweepRaw[HETRIGGER_COUNT];
+static uint16_t sweepBaseline[HETRIGGER_COUNT];
+static uint16_t sweepMinRaw[HETRIGGER_COUNT];
+static uint16_t sweepMaxRaw[HETRIGGER_COUNT];
+static bool sweepScanned[HETRIGGER_COUNT];
+static Pin_t sweepAdcPins[4];
+static Pin_t sweepSelectPins[4];
+static int sweepSelectCount;
+static int32_t sweepMuxChannels;
+static uint32_t sweepSettleMicros;
+
+void processHETriggerSweep()
+{
+    if (!sweepActive || time_us_32() - sweepSampledAt < HETRIGGER_SWEEP_INTERVAL_US)
+        return;
+
+    if (!heInitPins(sweepMuxChannels, sweepAdcPins, sweepSelectPins, sweepSelectCount)) {
+        sweepActive = false;
+        return;
+    }
+
+    uint16_t minRaw[HETRIGGER_COUNT];
+    uint16_t maxRaw[HETRIGGER_COUNT];
+    heScanChannels(sweepMuxChannels, sweepSettleMicros, sweepAdcPins, sweepSelectPins,
+                   sweepSelectCount, HETRIGGER_SWEEP_SAMPLES, sweepRaw, minRaw, maxRaw);
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        if (!sweepScanned[he])
+            continue;
+        if (minRaw[he] < sweepMinRaw[he]) sweepMinRaw[he] = minRaw[he];
+        if (maxRaw[he] > sweepMaxRaw[he]) sweepMaxRaw[he] = maxRaw[he];
+    }
+    sweepSampledAt = time_us_32();
+}
+
+// Capture resting baselines before the network-driver loop collects movement.
+std::string startHETriggerSweep()
+{
+    const size_t capacity = JSON_OBJECT_SIZE(4);
+    DynamicJsonDocument doc(capacity);
+
+    for (int pin = 0; pin < 4; pin++) {
+        sweepAdcPins[pin] = calibrationADCPins[pin];
+        sweepSelectPins[pin] = calibrationSelectPins[pin];
+    }
+    if (!heInitPins(calibrationMuxChannels, sweepAdcPins, sweepSelectPins, sweepSelectCount)) {
+        doc["error"] = "mux channels incorrect";
+        return serialize_json(doc);
+    }
+    sweepMuxChannels = calibrationMuxChannels;
+    sweepSettleMicros = calibrationMuxSettleMicros;
+
+    heScanChannels(sweepMuxChannels, sweepSettleMicros, sweepAdcPins, sweepSelectPins,
+                   sweepSelectCount, 1, sweepRaw, nullptr, nullptr);
+
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        const uint32_t mux = he / sweepMuxChannels;
+        sweepScanned[he] = mux < 4 && sweepAdcPins[mux] >= 26 && sweepAdcPins[mux] <= 29;
+        sweepBaseline[he] = sweepRaw[he];
+        sweepMinRaw[he] = sweepRaw[he];
+        sweepMaxRaw[he] = sweepRaw[he];
+    }
+    sweepSampledAt = time_us_32();
+    sweepActive = true;
+    if (++sweepSessionId == 0)
+        sweepSessionId = 1;
+
+    doc["active"] = true;
+    doc["sessionId"] = sweepSessionId;
+    return serialize_json(doc);
+}
+
+// Report the extrema collected by the network-driver loop.
+std::string getHETriggerSweep()
+{
+    // 32 channels of 5 members (raw/baseline/min/max/moved), scaled the same way
+    // getHETriggerCalibrations scales its 9-member, 32-channel document to
+    // 600: roughly double the raw member count to cover the array and each
+    // channel object's own slot.
+    const size_t capacity = JSON_OBJECT_SIZE(400);
+    DynamicJsonDocument doc(capacity);
+
+    if (!sweepActive) {
+        doc["active"] = false;
+        return serialize_json(doc);
+    }
+
+    doc["active"] = true;
+    doc["sessionId"] = sweepSessionId;
+    JsonArray channelList = doc.createNestedArray("channels");
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        // Baseline sits inside [min, max] by construction, so both distances
+        // are already non-negative and the larger one is the true swing,
+        // whether the sensor reads high or low once pressed.
+        const int32_t fromMin = (int32_t)sweepBaseline[he] - (int32_t)sweepMinRaw[he];
+        const int32_t fromMax = (int32_t)sweepMaxRaw[he] - (int32_t)sweepBaseline[he];
+        const bool moved = (fromMin >= HETRIGGER_MIN_SPAN) || (fromMax >= HETRIGGER_MIN_SPAN);
+
+        JsonObject channel = channelList.createNestedObject();
+        channel["baseline"] = sweepBaseline[he];
+        channel["raw"] = sweepRaw[he];
+        channel["min"] = sweepMinRaw[he];
+        channel["max"] = sweepMaxRaw[he];
+        channel["moved"] = moved;
+    }
+
+    return serialize_json(doc);
+}
+
+// Writes every channel's baseline/extreme as idle/pressed and marks it
+// calibrated, so a channel that never moved keeps its baseline as both
+// values, lands under HETRIGGER_MIN_SPAN and calibrates inert rather than
+// falling back to the full ADC range. An optional body of actuationPoint
+// and/or deactuationPoint (tenths of a percent) applies that threshold to
+// every channel in the same pass, so a sweep can set thresholds without
+// visiting each channel's modal.
+std::string commitHETriggerSweep()
+{
+    DynamicJsonDocument requestDoc = get_post_data();
+
+    const size_t capacity = JSON_OBJECT_SIZE(4);
+    DynamicJsonDocument doc(capacity);
+
+    if (!sweepActive || requestDoc["sessionId"] != sweepSessionId) {
+        doc["active"] = false;
+        doc["saved"] = false;
+        return serialize_json(doc);
+    }
+
+    JsonObject requestObj = requestDoc.as<JsonObject>();
+
+    // An actuation point of zero would be satisfied by a key at rest
+    const bool applyActuation = requestObj["actuationPoint"] > 0;
+    const bool applyDeactuation = requestObj["deactuationPoint"] != nullptr;
+
+    HETriggerInfo* heTriggers = Storage::getInstance().getAddonOptions().heTriggerOptions.triggers;
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        if (!sweepScanned[he])
+            continue;
+
+        heTriggers[he].idle = sweepBaseline[he];
+        heTriggers[he].pressed = hePressedFromSweep(sweepBaseline[he], sweepMinRaw[he], sweepMaxRaw[he]);
+        heTriggers[he].calibrated = true;
+
+        if (applyActuation) {
+            readTravel(heTriggers[he].actuationPoint, requestObj, "actuationPoint");
+        }
+        if (applyDeactuation) {
+            readTravel(heTriggers[he].deactuationPoint, requestObj, "deactuationPoint");
+        }
+    }
+
+    Storage::getInstance().getAddonOptions().heTriggerOptions.triggers_count = HETRIGGER_COUNT;
+    EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
+
+    sweepActive = false;
+    doc["active"] = false;
+    doc["saved"] = true;
+    return serialize_json(doc);
+}
+
+// Abandons the in-progress sweep without touching stored calibration.
+std::string cancelHETriggerSweep()
+{
+    DynamicJsonDocument requestDoc = get_post_data();
+    const size_t capacity = JSON_OBJECT_SIZE(4);
+    DynamicJsonDocument doc(capacity);
+
+    if (sweepActive && requestDoc["sessionId"] == sweepSessionId)
+        sweepActive = false;
+
+    doc["active"] = sweepActive;
     return serialize_json(doc);
 }
 
@@ -1938,6 +2353,12 @@ std::string setAddonOptions()
     docToPin(heTriggerOptions.muxADCPin3, doc, "muxADCPin3");
     docToValue(heTriggerOptions.emaSmoothing, doc, "heTriggerSmoothing");
     docToValue(heTriggerOptions.smoothingFactor, doc, "heTriggerSmoothingFactor");
+    docToValue(heTriggerOptions.noiseFloor, doc, "heTriggerNoiseFloor");
+    docToValue(heTriggerOptions.analogDeadzone, doc, "heTriggerAnalogDeadzone");
+    docToValue(heTriggerOptions.analogCurve, doc, "heTriggerAnalogCurve");
+    docToValue(heTriggerOptions.muxSettleMicros, doc, "heTriggerMuxSettleMicros");
+    docToValue(heTriggerOptions.analogProportional, doc, "heTriggerAnalogProportional");
+    ConfigUtils::sanitizeHETriggerOptions(heTriggerOptions);
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 
@@ -2396,6 +2817,11 @@ std::string getAddonOptions()
     writeDoc(doc, "muxADCPin3", cleanPin(heTriggerOptions.muxADCPin3));
     writeDoc(doc, "heTriggerSmoothing", heTriggerOptions.emaSmoothing);
     writeDoc(doc, "heTriggerSmoothingFactor", heTriggerOptions.smoothingFactor);
+    writeDoc(doc, "heTriggerNoiseFloor", heTriggerOptions.noiseFloor);
+    writeDoc(doc, "heTriggerAnalogDeadzone", heTriggerOptions.analogDeadzone);
+    writeDoc(doc, "heTriggerAnalogCurve", heTriggerOptions.analogCurve);
+    writeDoc(doc, "heTriggerMuxSettleMicros", heTriggerOptions.muxSettleMicros);
+    writeDoc(doc, "heTriggerAnalogProportional", heTriggerOptions.analogProportional);
 
     return serialize_json(doc);
 }
@@ -2746,7 +3172,12 @@ static const std::pair<const char*, HandlerFuncPtr> handlerFuncs[] =
     { "/api/setHETriggerCalibrations", setHETriggerCalibrations },
     { "/api/getHETriggerCalibrations", getHETriggerCalibrations },
     { "/api/getHETriggerVoltage", getHETriggerVoltage },
+    { "/api/getHETriggerState", getHETriggerState },
     { "/api/setHETriggerOptions", setHETriggerOptions },
+    { "/api/startHETriggerSweep", startHETriggerSweep },
+    { "/api/getHETriggerSweep", getHETriggerSweep },
+    { "/api/commitHETriggerSweep", commitHETriggerSweep },
+    { "/api/cancelHETriggerSweep", cancelHETriggerSweep },
     { "/api/setReactiveLEDs", setReactiveLEDs },
     { "/api/getReactiveLEDs", getReactiveLEDs },
     { "/api/setKeyMappings", setKeyMappings },

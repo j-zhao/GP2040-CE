@@ -10,6 +10,7 @@ export default {
 		'layout-header': 'Layout Options',
 		'mode-header': 'Mode Options',
 		'button-layout-header': 'Button Layout',
+		'preview-header': 'Layout Preview',
 		'status-layout-header': 'Status Bar Layout',
 		'history-layout-header': 'Input History Layout',
 	},

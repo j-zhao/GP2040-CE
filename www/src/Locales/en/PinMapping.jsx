@@ -7,6 +7,35 @@ export default {
 	'profile-label-title': 'Profile name',
 	'profile-label-description':
 		'Max 16 characters. Printable ASCII characters allowed.',
+	'profile-socd-mode-title': 'SOCD Cleaning Mode',
+	'profile-socd-use-global': 'Use global setting',
+	'profile-socd-slider-note':
+		'The SOCD slider add-on is enabled. The slider hardware overrides this setting.',
+	'profile-he-override': 'Override Hall-Effect Thresholds',
+	'profile-he-override-tooltip':
+		'This profile overrides the hall effect settings that each channel normally uses. Per-channel actions and calibration are not affected, only the actuation and rapid trigger behavior.',
+	'profile-he-actuation': 'Actuation Point (%)',
+	'profile-he-actuation-tooltip':
+		'How far the key must be pressed before it registers, as a percentage of its calibrated travel. Smaller values trigger sooner.',
+	'profile-he-deactuation': 'Deactuation Point (%)',
+	'profile-he-deactuation-tooltip':
+		'How far the key must come back up before it releases. Leave it at 0 to release at the actuation point. It can never sit deeper than the actuation point.',
+	'profile-he-rt-mode': 'Rapid Trigger',
+	'profile-he-rt-mode-tooltip':
+		'Off uses fixed points: the key presses at the actuation point and releases at the deactuation point. Rapid Trigger re-presses as soon as the key moves down by the press sensitivity from its shallowest point, and releases as soon as it moves up by the release sensitivity from its deepest point, once the actuation point has been reached. Continuous Rapid Trigger works the same way but without needing to reach the actuation point first, so it can re-trigger at any depth, even very shallow presses.',
+	'profile-he-rt-mode-options': {
+		off: 'Off',
+		normal: 'Rapid Trigger',
+		continuous: 'Continuous Rapid Trigger',
+	},
+	'profile-he-press-sensitivity': 'Press Sensitivity (%)',
+	'profile-he-press-sensitivity-tooltip':
+		'With rapid trigger on, how far down the key must move from its shallowest point to press again. Smaller is more sensitive. Values below the noise floor are raised to it.',
+	'profile-he-release-sensitivity': 'Release Sensitivity (%)',
+	'profile-he-release-sensitivity-tooltip':
+		'With rapid trigger on, how far up the key must move from its deepest point to release. Leave it at 0 to use the same value as the press sensitivity.',
+	'profile-he-mirror-note':
+		'Applies to every hall-effect channel. A deactuation point of 0 uses the actuation point, and a release sensitivity of 0 uses the press sensitivity.',
 	'profile-pin-mapping-title': '{{profileLabel}} - GPIO Pin Mapping',
 	'profile-label-default': 'Profile {{profileNumber}}',
 	'profile-add-button': '+ Add Profile',
@@ -90,6 +119,8 @@ export default {
 		ANALOG_DIRECTION_RS_Y_POS: 'Right Analog Stick Y+ (Down)',
 		ANALOG_DIRECTION_MOD_LOW: 'Analog Stick Tilt 1',
 		ANALOG_DIRECTION_MOD_HIGH: 'Analog Stick Tilt 2',
+		ANALOG_TRIGGER_LT: 'Analog Trigger L2',
+		ANALOG_TRIGGER_RT: 'Analog Trigger R2',
 		BUTTON_PRESS_INPUT_REVERSE: 'Reverse Input',
 		SUSTAIN_FOCUS_MODE: 'Focus Mode Enable',
 		SUSTAIN_4_8_WAY_MODE: 'Toggle 4-Way Mode',

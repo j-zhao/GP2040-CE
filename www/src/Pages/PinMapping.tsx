@@ -35,11 +35,20 @@ import CustomSelect from '../Components/CustomSelect';
 import CaptureButton from '../Components/CaptureButton';
 
 import { BUTTON_MASKS, DPAD_MASKS, getButtonLabels } from '../Data/Buttons';
-import { BUTTON_ACTIONS, PinActionKeys, PinActionValues } from '../Data/Pins';
+import {
+	BUTTON_ACTIONS,
+	HE_ONLY_ACTIONS,
+	PinActionKeys,
+	PinActionValues,
+} from '../Data/Pins';
 import './PinMapping.scss';
 import { MultiValue, SingleValue } from 'react-select';
 import InfoCircle from '../Icons/InfoCircle';
 import WebApi from '../Services/WebApi';
+import {
+	tenthsToWholePercent,
+	wholePercentToTenths,
+} from '../Services/Utilities';
 
 type OptionType = {
 	label: string;
@@ -63,6 +72,7 @@ const isNonSelectable = (action: PinActionValues) =>
 	[
 		BUTTON_ACTIONS.NONE,
 		BUTTON_ACTIONS.CUSTOM_BUTTON_COMBO,
+		...HE_ONLY_ACTIONS,
 		...disabledOptions,
 	].includes(action);
 
@@ -163,6 +173,266 @@ const ProfileLabel = memo(function ProfileLabel({
 	);
 });
 
+const SOCD_OPTION_KEYS = [
+	'up-priority',
+	'neutral',
+	'last-win',
+	'first-win',
+	'off',
+]; // index == SOCDMode enum value
+
+const ProfileSocdSelect = memo(function ProfileSocdSelect({
+	profileIndex,
+	sliderEnabled,
+}: {
+	profileIndex: number;
+	sliderEnabled: boolean;
+}) {
+	const { t } = useTranslation('');
+	const setProfileSocd = useProfilesStore((state) => state.setProfileSocd);
+	const socdEnabled = useProfilesStore(
+		(state) => state.profiles[profileIndex].socdEnabled,
+	);
+	const socdMode = useProfilesStore(
+		(state) => state.profiles[profileIndex].socdMode,
+	);
+
+	const onChange = useCallback(
+		(event: React.ChangeEvent<HTMLSelectElement>) => {
+			const value = parseInt(event.target.value, 10);
+			if (value < 0) {
+				setProfileSocd(profileIndex, false, 0);
+			} else {
+				setProfileSocd(profileIndex, true, value);
+			}
+		},
+		[],
+	);
+
+	return (
+		<div>
+			<Form.Label>{t('PinMapping:profile-socd-mode-title')}</Form.Label>
+			<Form.Select value={socdEnabled ? socdMode : -1} onChange={onChange}>
+				<option value={-1}>{t('PinMapping:profile-socd-use-global')}</option>
+				{SOCD_OPTION_KEYS.map((key, value) => (
+					<option key={key} value={value}>
+						{t(`SettingsPage:socd-cleaning-mode-options.${key}`)}
+					</option>
+				))}
+			</Form.Select>
+			{sliderEnabled && (
+				<Form.Text muted>{t('PinMapping:profile-socd-slider-note')}</Form.Text>
+			)}
+		</div>
+	);
+});
+
+const HE_RT_OPTION_KEYS = ['off', 'normal', 'continuous']; // index == HERapidTriggerMode
+
+// Per-profile hall effect overrides. These replace the per-channel thresholds
+// for every channel at once; actions and calibration stay global.
+const ProfileHESettings = memo(function ProfileHESettings({
+	profileIndex,
+}: {
+	profileIndex: number;
+}) {
+	const { t } = useTranslation('');
+	const setProfileHE = useProfilesStore((state) => state.setProfileHE);
+	const settings = useProfilesStore(
+		useShallow((state) => ({
+			heEnabled: state.profiles[profileIndex].heEnabled,
+			heActuationPoint: state.profiles[profileIndex].heActuationPoint,
+			heDeactuationPoint: state.profiles[profileIndex].heDeactuationPoint,
+			heRtMode: state.profiles[profileIndex].heRtMode,
+			heRtPressSensitivity: state.profiles[profileIndex].heRtPressSensitivity,
+			heRtReleaseSensitivity:
+				state.profiles[profileIndex].heRtReleaseSensitivity,
+		})),
+	);
+
+	// Thresholds and sensitivities are stored in tenths of a percent; the
+	// input only ever shows and accepts whole percent.
+	const setPercent = useCallback(
+		(field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
+			const percent = parseInt(event.target.value, 10) || 0;
+			setProfileHE(profileIndex, {
+				[field]: wholePercentToTenths(percent),
+			});
+		},
+		[],
+	);
+
+	// An actuation point of zero would be satisfied by a key at rest, so turning
+	// the override on seeds a usable value rather than whatever happened to be
+	// stored.
+	const onToggle = useCallback(
+		(event: React.ChangeEvent<HTMLInputElement>) => {
+			const enabled = event.target.checked;
+			setProfileHE(profileIndex, {
+				heEnabled: enabled,
+				...(enabled && !settings.heActuationPoint
+					? { heActuationPoint: 450 }
+					: {}),
+				...(enabled && !settings.heRtPressSensitivity
+					? { heRtPressSensitivity: 30 }
+					: {}),
+			});
+		},
+		[settings.heActuationPoint, settings.heRtPressSensitivity],
+	);
+
+	return (
+		<div className="mt-2">
+			<FormCheck
+				label={
+					<OverlayTrigger
+						overlay={
+							<Tooltip>{t('PinMapping:profile-he-override-tooltip')}</Tooltip>
+						}
+					>
+						<div className="d-flex gap-1">
+							<label>{t('PinMapping:profile-he-override')}</label>
+							<InfoCircle />
+						</div>
+					</OverlayTrigger>
+				}
+				type="switch"
+				checked={Boolean(settings.heEnabled)}
+				onChange={onToggle}
+			/>
+			{settings.heEnabled && (
+				<Row className="mt-2">
+					<Col md={6}>
+						<OverlayTrigger
+							overlay={
+								<Tooltip>
+									{t('PinMapping:profile-he-actuation-tooltip')}
+								</Tooltip>
+							}
+						>
+							<div className="d-flex gap-1">
+								<Form.Label>{t('PinMapping:profile-he-actuation')}</Form.Label>
+								<InfoCircle />
+							</div>
+						</OverlayTrigger>
+						<Form.Control
+							type="number"
+							min={1}
+							max={100}
+							value={tenthsToWholePercent(settings.heActuationPoint)}
+							onChange={setPercent('heActuationPoint')}
+						/>
+					</Col>
+					<Col md={6}>
+						<OverlayTrigger
+							overlay={
+								<Tooltip>
+									{t('PinMapping:profile-he-deactuation-tooltip')}
+								</Tooltip>
+							}
+						>
+							<div className="d-flex gap-1">
+								<Form.Label>
+									{t('PinMapping:profile-he-deactuation')}
+								</Form.Label>
+								<InfoCircle />
+							</div>
+						</OverlayTrigger>
+						<Form.Control
+							type="number"
+							min={0}
+							max={100}
+							value={tenthsToWholePercent(settings.heDeactuationPoint)}
+							onChange={setPercent('heDeactuationPoint')}
+						/>
+					</Col>
+					<Col md={6} className="mt-2">
+						<OverlayTrigger
+							overlay={
+								<Tooltip>{t('PinMapping:profile-he-rt-mode-tooltip')}</Tooltip>
+							}
+						>
+							<div className="d-flex gap-1">
+								<Form.Label>{t('PinMapping:profile-he-rt-mode')}</Form.Label>
+								<InfoCircle />
+							</div>
+						</OverlayTrigger>
+						<Form.Select
+							value={settings.heRtMode}
+							onChange={(event) =>
+								setProfileHE(profileIndex, {
+									heRtMode: parseInt(event.target.value, 10),
+								})
+							}
+						>
+							{HE_RT_OPTION_KEYS.map((key, value) => (
+								<option key={key} value={value}>
+									{t(`PinMapping:profile-he-rt-mode-options.${key}`)}
+								</option>
+							))}
+						</Form.Select>
+					</Col>
+					{settings.heRtMode > 0 && (
+						<>
+							<Col md={6} className="mt-2">
+								<OverlayTrigger
+									overlay={
+										<Tooltip>
+											{t('PinMapping:profile-he-press-sensitivity-tooltip')}
+										</Tooltip>
+									}
+								>
+									<div className="d-flex gap-1">
+										<Form.Label>
+											{t('PinMapping:profile-he-press-sensitivity')}
+										</Form.Label>
+										<InfoCircle />
+									</div>
+								</OverlayTrigger>
+								<Form.Control
+									type="number"
+									min={0}
+									max={100}
+									value={tenthsToWholePercent(settings.heRtPressSensitivity)}
+									onChange={setPercent('heRtPressSensitivity')}
+								/>
+							</Col>
+							<Col md={6} className="mt-2">
+								<OverlayTrigger
+									overlay={
+										<Tooltip>
+											{t('PinMapping:profile-he-release-sensitivity-tooltip')}
+										</Tooltip>
+									}
+								>
+									<div className="d-flex gap-1">
+										<Form.Label>
+											{t('PinMapping:profile-he-release-sensitivity')}
+										</Form.Label>
+										<InfoCircle />
+									</div>
+								</OverlayTrigger>
+								<Form.Control
+									type="number"
+									min={0}
+									max={100}
+									value={tenthsToWholePercent(settings.heRtReleaseSensitivity)}
+									onChange={setPercent('heRtReleaseSensitivity')}
+								/>
+							</Col>
+						</>
+					)}
+					<Col md={12}>
+						<Form.Text muted>
+							{t('PinMapping:profile-he-mirror-note')}
+						</Form.Text>
+					</Col>
+				</Row>
+			)}
+		</div>
+	);
+});
+
 const PinSelectList = memo(function PinSelectList({
 	profileIndex,
 }: {
@@ -172,7 +442,18 @@ const PinSelectList = memo(function PinSelectList({
 
 	const pins = useProfilesStore(
 		useShallow((state) =>
-			omit(state.profiles[profileIndex], ['profileLabel', 'enabled']),
+			omit(state.profiles[profileIndex], [
+				'profileLabel',
+				'enabled',
+				'socdEnabled',
+				'socdMode',
+				'heEnabled',
+				'heActuationPoint',
+				'heDeactuationPoint',
+				'heRtMode',
+				'heRtPressSensitivity',
+				'heRtReleaseSensitivity',
+			]),
 		),
 	);
 	const { t } = useTranslation('');
@@ -290,6 +571,7 @@ const PinSection = memo(function PinSection({
 		});
 
 	const [activeProfile, setActiveProfile] = useState(0);
+	const [sliderEnabled, setSliderEnabled] = useState(false);
 
 	const { updateUsedPins, buttonLabels, setLoading } = useContext(AppContext);
 	const { buttonLabelType, swapTpShareLabels } = buttonLabels;
@@ -318,6 +600,12 @@ const PinSection = memo(function PinSection({
 		getActiveProfile();
 	}, []);
 
+	useEffect(() => {
+		WebApi.getAddonsOptions(() => {}).then((options) =>
+			setSliderEnabled(Boolean(options?.SliderSOCDInputEnabled)),
+		);
+	}, []);
+
 	return (
 		<>
 			<div className="alert alert-warning">
@@ -340,9 +628,14 @@ const PinSection = memo(function PinSection({
 					<Row>
 						<Col md={7}>
 							<ProfileLabel profileIndex={profileIndex} />
+							<ProfileSocdSelect
+								profileIndex={profileIndex}
+								sliderEnabled={sliderEnabled}
+							/>
+							<ProfileHESettings profileIndex={profileIndex} />
 						</Col>
 						{profileIndex > 0 && (
-							<Col className='order-first order-md-last'>
+							<Col className="order-first order-md-last">
 								<FormCheck
 									disabled={profileIndex === activeProfile}
 									size={3}

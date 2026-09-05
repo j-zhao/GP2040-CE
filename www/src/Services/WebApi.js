@@ -6,6 +6,16 @@ export const baseUrl =
 		? ''
 		: import.meta.env.VITE_DEV_BASE_URL;
 
+let heTriggerRequestQueue = Promise.resolve();
+const queueHETriggerRequest = (request) => {
+	const result = heTriggerRequestQueue.then(request, request);
+	heTriggerRequestQueue = result.then(
+		() => undefined,
+		() => undefined,
+	);
+	return result;
+};
+
 export const baseButtonMappings = {
 	Up: { pin: -1, key: 0, error: null },
 	Down: { pin: -1, key: 0, error: null },
@@ -660,7 +670,9 @@ async function getHETriggerVoltage(settings) {
 
 // POST function to set our channels, select, and ADC pin
 async function setHETriggerOptions(settings) {
-	return Http.post(`${baseUrl}/api/setHETriggerOptions`, settings);
+	return queueHETriggerRequest(() =>
+		Http.post(`${baseUrl}/api/setHETriggerOptions`, settings),
+	);
 }
 
 async function getHETriggerCalibrations() {
@@ -677,6 +689,55 @@ async function setHETriggerCalibrations(triggers) {
 	console.dir(triggers);
 
 	return Http.post(`${baseUrl}/api/setHETriggerCalibrations`, triggers);
+}
+
+// Live travel and output state, as last sampled by the running addon
+async function getHETriggerState() {
+	try {
+		const response = await Http.get(`${baseUrl}/api/getHETriggerState`);
+		return response.data;
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+// Begin a calibrate-all sweep session; the firmware captures each channel's
+// resting value as its baseline.
+async function startHETriggerSweep(layout) {
+	return queueHETriggerRequest(async () => {
+		await Http.post(`${baseUrl}/api/setHETriggerOptions`, layout);
+		const response = await Http.post(`${baseUrl}/api/startHETriggerSweep`);
+		return response.data;
+	});
+}
+
+// Poll the running sweep for each channel's raw reading and observed min/max.
+async function getHETriggerSweep() {
+	const response = await Http.get(`${baseUrl}/api/getHETriggerSweep`);
+	return response.data;
+}
+
+// Save the sweep's captured idle/pressed values and mark channels calibrated.
+// An optional payload of actuationPoint/deactuationPoint (tenths of a percent)
+// applies that threshold to every channel as it commits.
+async function commitHETriggerSweep(sessionId, thresholds) {
+	return queueHETriggerRequest(async () => {
+		const response = await Http.post(`${baseUrl}/api/commitHETriggerSweep`, {
+			sessionId,
+			...thresholds,
+		});
+		return response.data;
+	});
+}
+
+// Discard the running sweep without saving anything.
+async function cancelHETriggerSweep(sessionId) {
+	return queueHETriggerRequest(async () => {
+		const response = await Http.post(`${baseUrl}/api/cancelHETriggerSweep`, {
+			sessionId,
+		});
+		return response.data;
+	});
 }
 
 async function getHeldPins(abortSignal) {
@@ -741,9 +802,14 @@ export default {
 	getExpansionPins,
 	setExpansionPins,
 	getHETriggerVoltage,
+	getHETriggerState,
 	setHETriggerCalibrations,
 	getHETriggerCalibrations,
 	setHETriggerOptions,
+	startHETriggerSweep,
+	getHETriggerSweep,
+	commitHETriggerSweep,
+	cancelHETriggerSweep,
 	getReactiveLEDs,
 	setReactiveLEDs,
 	getButtonLayouts,

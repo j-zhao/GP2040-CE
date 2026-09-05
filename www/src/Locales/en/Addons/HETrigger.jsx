@@ -1,6 +1,7 @@
 export default {
 	'header-text': 'Hall-Effect Trigger',
-	'desc-header-text': 'Hall Effect Trigger Supports 4-Channel, 8-Channel, and 16-Channel Multiplexers.',
+	'desc-header-text':
+		'Hall Effect Trigger Supports 4-Channel, 8-Channel, and 16-Channel Multiplexers.',
 	'available-pins-text': 'Available ADC pins: {{pins}}',
 	'multiplexer-channel-select': 'Channels Per Multiplexer',
 	'direct-no-mux': 'Direct (No Mux)',
@@ -18,20 +19,29 @@ export default {
 	'action-assignment-sub-header': 'Hall-Effect Action Assignment',
 	'multiplexer-label': 'Multiplexer',
 	'channel-label': 'Channel',
-	'voltage-table-show-label': 'Show Voltage Table',
-	'voltage-table-hide-label': 'Hide Voltage Table',
-	'voltage-table-header-text': 'Hall-Effect Voltage Table',
+	'voltage-table-show-label': 'Show Trigger Table',
+	'voltage-table-hide-label': 'Hide Trigger Table',
+	'voltage-table-header-text': 'Hall-Effect Trigger Table',
 	'voltage-table-idle-text': 'Idle',
-	'voltage-table-trigger-text': 'Trigger',
 	'voltage-table-pressed-text': 'Pressed',
-	'voltage-table-polarity-text': 'Polarity',
-	'voltage-table-rapid-trigger-text': 'Rapid Trigger',
-	'voltage-table-release-text': 'Rapid Trigger Threshold',
-	'voltage-table-noise-text': 'Rapid Trigger Noise Filter',
 	'voltage-table-disabled-label': '(Disabled)',
+	'table-actuation-text': 'Actuation',
+	'table-deactuation-text': 'Deactuation',
+	'table-rapid-trigger-text': 'Rapid Trigger',
+	'table-press-sensitivity-text': 'Press Sensitivity',
+	'table-release-sensitivity-text': 'Release Sensitivity',
+	'table-socd-partner-text': 'SOCD Partner',
+	'table-live-travel-text': 'Live Travel',
+	'noise-floor-label': 'Noise Floor (%)',
+	'mux-settle-label': 'Mux Settle (us)',
+	'analog-proportional-label': 'Proportional Stick Output',
+	'analog-deadzone-label': 'Analog Deadzone (%)',
+	'analog-curve-label': 'Analog Response Curve',
+	'analog-curve-linear': 'Linear',
+	'analog-curve-exponential': 'Exponential',
+	'analog-curve-s': 'S-Curve',
 	'overwrite-all-warning': 'Overwrite All Triggers',
 	'overwrite-confirm': 'Confirm Overwrite All Triggers',
-	'next-calibration-text': 'Next Calibration',
 	'finish-calibration-text': 'Finish Calibration',
 	'calibrate-idle-button': 'Calibrate Idle',
 	'calibrate-pressed-button': 'Calibrate Pressed',
@@ -40,26 +50,65 @@ export default {
 	'restart-text': 'Restart',
 	'pressed-text': 'Pressed!',
 	'idle-input-text': 'Idle Voltage',
-	'activation-input-text': 'Activation Voltage',
-	'rapid-trigger-threshold-input-text': 'Rapid Trigger Threshold',
-	'rapid-trigger-noise-input-text': 'Rapid Trigger Noise Filter',
 	'pressed-input-text': 'Pressed Voltage',
-	'activation-reading-text': 'Activation Point Reading:',
+	'actuation-input-text': 'Actuation Point (%)',
+	'deactuation-input-text': 'Deactuation Point (%)',
+	'separate-deactuation-label': 'Separate Deactuation Point',
+	'rapid-trigger-mode-label': 'Rapid Trigger',
+	'rapid-trigger-off': 'Off',
+	'rapid-trigger-normal': 'Rapid Trigger',
+	'rapid-trigger-continuous': 'Continuous Rapid Trigger',
+	'press-sensitivity-input-text': 'Press Sensitivity (%)',
+	'release-sensitivity-input-text': 'Release Sensitivity (%)',
+	'separate-sensitivity-label': 'Separate Release Sensitivity',
+	'socd-partner-input-text': 'SOCD Partner Channel (empty = none)',
+	'activation-reading-text': 'Travel Reading:',
 	'calibrate-all-button': 'Calibrate All 🧲',
 	'calibration-header-text': 'Hall-Effect Calibration',
 	'calibration-idle-text': 'Idle Voltage Reading:',
 	'calibration-pressed-text': 'Pressed Voltage Reading:',
 	'calibration-trigger-text': 'Trigger Voltage',
-	'calibration-flip-polarity': 'Flip Polarity',
-	'calibration-flip-rapid-trigger': 'Enable Rapid Trigger',
 	'calibration-back-button': 'Back',
-	'calibration-first-step': 'We need to calibrate the idle voltage and full press voltage of the hall-effect switch. ' +
-								'After calibration, we can adjust the trigger-activation point to our desired depth. ' +
-								'First, let\'s calibrate the idle voltage. Leave the hall-effect button untouched and click the "Calibrate Idle" button.',
-	'calibration-second-step': 'Next, press the button fully to reach our maximum depth. Activation position can be adjusted after calibration.',
-	'calibration-third-step': 'Finally, let\'s adjust our current activation point and set the desired trigger point. '+
-								'Once adjusted, press the button and verify it activates at the desired position.',
-	'calibration-manual-step': 'Please adjust the following attributes of the hall effect button to the desired amounts. '+
-							    'Once the desired values have been found, you can copy these values and set all triggers '+
-							    'on the device.',
+	'calibration-first-step':
+		'We need to calibrate the idle voltage and full press voltage of the hall-effect switch. ' +
+		'After calibration, we can adjust the trigger-activation point to our desired depth. ' +
+		'First, let\'s calibrate the idle voltage. Leave the hall-effect button untouched and click the "Calibrate Idle" button.',
+	'calibration-second-step':
+		'Next, press the button fully to reach our maximum depth. Activation position can be adjusted after calibration.',
+	'calibration-third-step':
+		'Finally, set the actuation point as a percentage of travel. ' +
+		'Once adjusted, press the button and verify it activates at the desired depth.',
+	'calibration-manual-step':
+		'Please adjust the following attributes of the hall effect button to the desired amounts. ' +
+		'Once the desired values have been found, you can copy these values and set all triggers ' +
+		'on the device.',
+	'sweep-header-text': 'Calibrate All Channels',
+	'sweep-action-label': 'Action',
+	'sweep-instructions-text':
+		'Press and release every assigned button once, one at a time. Each channel below turns green once it has been seen.',
+	'sweep-progress-text': '{{seen}} of {{total}} channels seen',
+	'sweep-channel-label': 'Channel {{channel}}',
+	'sweep-unassigned-label': '(Unassigned)',
+	'sweep-seen-label': 'Seen',
+	'sweep-not-seen-label': 'Not seen',
+	'sweep-span-label': 'Span: {{span}}',
+	'sweep-inert-warning':
+		'Channels not seen will be saved as inert and will never actuate.',
+	'sweep-suspicious-warning':
+		'These channels moved only a small amount, so calibration may be unreliable: {{channels}}',
+	'sweep-save-confirm':
+		'Some channels were not seen, or moved only a small amount. Save anyway?',
+	'sweep-save-button': 'Save Calibration',
+	'sweep-cancel-button': 'Cancel',
+	'sweep-start-error':
+		'Could not start calibration. Close this window and try again.',
+	'sweep-read-error':
+		'Could not read the calibration session. Check the device connection.',
+	'sweep-save-error':
+		'Could not complete calibration save. Check the device connection and try again.',
+	'sweep-cancel-error':
+		'Could not cancel calibration. Check the device connection and try again.',
+	'sweep-actuation-input-text': 'Actuation Point (%) - Applies to All Channels',
+	'sweep-deactuation-input-text':
+		'Deactuation Point (%) - Applies to All Channels',
 };

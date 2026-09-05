@@ -44,9 +44,26 @@ const rgbWheel = (pos) => {
 const createEnumRecord = <T extends Record<string, number | string>>(
 	enumObj: T,
 ): Record<keyof T, T[keyof T]> =>
-Object.fromEntries(
+	Object.fromEntries(
 		Object.entries(enumObj).filter(([, value]) => typeof value === 'number'),
 	) as Record<keyof T, T[keyof T]>;
 
+// The firmware stores hall-effect travel, thresholds, and sensitivities as
+// tenths of a percent (0-1000). The UI only ever shows whole percent, so
+// these two helpers are the single place that rounds for display and scales
+// back for storage. Round-tripping a value that is not a multiple of ten
+// stays a display rounding, never a rewrite of the stored value.
+const tenthsToWholePercent = (tenths: number): number =>
+	Math.round(tenths / 10);
+const wholePercentToTenths = (percent: number): number => percent * 10;
 
-export { hexToInt, intToHex, rgbArrayToHex, rgbIntToHex, rgbWheel, createEnumRecord };
+export {
+	hexToInt,
+	intToHex,
+	rgbArrayToHex,
+	rgbIntToHex,
+	rgbWheel,
+	createEnumRecord,
+	tenthsToWholePercent,
+	wholePercentToTenths,
+};

@@ -47,6 +47,19 @@ export type PinsType = {
 	pin29: MaskPayload;
 	profileLabel: string;
 	enabled: boolean;
+	socdEnabled: boolean;
+	socdMode: number;
+} & HEProfileSettings;
+
+// Hall effect overrides applied to every channel at once. Travel values are
+// tenths of a percent, and 0 mirrors the paired value.
+export type HEProfileSettings = {
+	heEnabled: boolean;
+	heActuationPoint: number;
+	heDeactuationPoint: number;
+	heRtMode: number;
+	heRtPressSensitivity: number;
+	heRtReleaseSensitivity: number;
 };
 
 type State = {
@@ -66,6 +79,15 @@ type Actions = {
 	fetchProfiles: () => void;
 	saveProfiles: () => Promise<object>;
 	setProfileLabel: (profileIndex: number, profileLabel: string) => void;
+	setProfileSocd: (
+		profileIndex: number,
+		socdEnabled: boolean,
+		socdMode: number,
+	) => void;
+	setProfileHE: (
+		profileIndex: number,
+		settings: Partial<HEProfileSettings>,
+	) => void;
 	setProfilePin: SetProfilePinType;
 	toggleProfileEnabled: (profileIndex: number) => void;
 };
@@ -139,6 +161,25 @@ const useProfilesStore = create<State & Actions>()((set, get) => ({
 		set((state) => {
 			const profiles = [...state.profiles];
 			profiles[profileIndex] = { ...profiles[profileIndex], profileLabel };
+			return { profiles };
+		}),
+	setProfileSocd: (profileIndex, socdEnabled, socdMode) =>
+		set((state) => {
+			const profiles = [...state.profiles];
+			profiles[profileIndex] = {
+				...profiles[profileIndex],
+				socdEnabled,
+				socdMode,
+			};
+			return { profiles };
+		}),
+	setProfileHE: (profileIndex, settings) =>
+		set((state) => {
+			const profiles = [...state.profiles];
+			profiles[profileIndex] = {
+				...profiles[profileIndex],
+				...settings,
+			};
 			return { profiles };
 		}),
 	saveProfiles: async () => {
