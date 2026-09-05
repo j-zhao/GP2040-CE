@@ -41,8 +41,7 @@ const MIN_SPAN = 16;
 // trust for calibration, so the sweep flags it rather than silently saving it.
 const SUSPICIOUS_SPAN = MIN_SPAN * 4;
 
-// Firmware sweep polling interval. Fast enough to catch a quick tap without
-// hammering the device, since the firmware samples several times per request.
+// Firmware captures extrema between these display updates.
 const SWEEP_POLL_MS = 250;
 
 type SweepChannel = {
@@ -79,7 +78,8 @@ const getOption = (e, actionId) => {
 const travelFromRaw = (raw: number, idle: number, pressed: number) => {
 	const span = pressed - idle;
 	if (Math.abs(span) < MIN_SPAN) return 0;
-	const travel = Math.round(((raw - idle) * TRAVEL_MAX) / span);
+	const scale = Math.trunc(((TRAVEL_MAX << 10) + Math.abs(span) - 1) / span);
+	const travel = ((raw - idle) * scale) >> 10;
 	return Math.min(TRAVEL_MAX, Math.max(0, travel));
 };
 
@@ -115,10 +115,11 @@ const HECalibration = ({
 	// Calibrate-all sweep session state. sweepChannels holds one entry per
 	// channel, in channel order, as last reported by the firmware.
 	const sweepTimerId = useRef<number>();
-	const sweepSessionActive = useRef(false);
 	const sweepSessionId = useRef<number>();
-	const sweepStartId = useRef(0);
-	const sweepPollPending = useRef(false);
+	const sweepGeneration = useRef(0);
+	const sweepCommitted = useRef(false);
+	const [sweepBusy, setSweepBusy] = useState(false);
+	const [sweepError, setSweepError] = useState('');
 	const [sweepChannels, setSweepChannels] = useState<SweepChannel[]>([]);
 
 	// Thresholds applied to every channel on commit, in whole percent. Seeded
@@ -142,6 +143,10 @@ const HECalibration = ({
 		return channel.max - channel.min < SUSPICIOUS_SPAN;
 	});
 	const sweepSeenCount = sweepAssigned.length - sweepUnseen.length;
+	const canSaveSweep = () => {
+		if (sweepBusy) return false;
+		return sweepSessionId.current !== undefined || sweepCommitted.current;
+	};
 
 	// Peak and valley of the live preview, mirroring the firmware state machine
 	const peak = useRef(0);
@@ -292,35 +297,72 @@ const HECalibration = ({
 	// Stops the poll but leaves the firmware session alone; callers decide
 	// whether to commit or cancel it.
 	const stopSweepPolling = () => {
-		if (sweepTimerId.current) clearInterval(sweepTimerId.current);
+		if (sweepTimerId.current) clearTimeout(sweepTimerId.current);
 		sweepTimerId.current = undefined;
 	};
 
-	const pollSweep = async () => {
-		// Pausing while the tab is hidden avoids piling up requests the user
-		// cannot see the results of anyway.
-		if (document.hidden) return;
-		if (sweepPollPending.current) return;
-		if (sweepSessionId.current === undefined) return;
-		const sessionId = sweepSessionId.current;
-		sweepPollPending.current = true;
-		const result = await WebApi.getHETriggerSweep();
-		sweepPollPending.current = false;
-		if (sweepSessionId.current !== sessionId) return;
-		if (!result || !result.active || result.sessionId !== sessionId) {
-			sweepSessionActive.current = false;
-			sweepSessionId.current = undefined;
-			stopSweepPolling();
+	const pollSweep = async (generation: number) => {
+		try {
+			if (!document.hidden) {
+				const result = await WebApi.getHETriggerSweep();
+				if (generation !== sweepGeneration.current) return;
+				if (!result.active || result.sessionId !== sweepSessionId.current) {
+					sweepSessionId.current = undefined;
+					++sweepGeneration.current;
+					setSweepError(t('HETrigger:sweep-read-error'));
+					return;
+				}
+				setSweepChannels(result.channels || []);
+				setSweepError('');
+			}
+		} catch {
+			if (generation === sweepGeneration.current) {
+				setSweepError(t('HETrigger:sweep-read-error'));
+			}
+		} finally {
+			if (generation === sweepGeneration.current) {
+				sweepTimerId.current = window.setTimeout(
+					() => pollSweep(generation),
+					SWEEP_POLL_MS,
+				);
+			}
+		}
+	};
+
+	const requestSweep = async (generation: number) => {
+		const layout = Object.fromEntries(
+			[
+				'muxChannels',
+				'muxADCPin0',
+				'muxADCPin1',
+				'muxADCPin2',
+				'muxADCPin3',
+				'muxSelectPin0',
+				'muxSelectPin1',
+				'muxSelectPin2',
+				'muxSelectPin3',
+				'heTriggerMuxSettleMicros',
+			].map((key) => [key, Number(values[key])]),
+		);
+		const result = await WebApi.startHETriggerSweep(layout);
+		if (!result?.active) {
+			throw new Error(result?.error || 'Could not start sweep');
+		}
+		if (generation !== sweepGeneration.current) {
+			await WebApi.cancelHETriggerSweep(result.sessionId);
 			return;
 		}
-		setSweepChannels(result.channels || []);
+		sweepSessionId.current = result.sessionId;
+		pollSweep(generation);
 	};
 
 	const startSweep = async () => {
-		const startId = ++sweepStartId.current;
+		const generation = ++sweepGeneration.current;
+		stopSweepPolling();
+		sweepCommitted.current = false;
+		setSweepBusy(true);
+		setSweepError('');
 		setSweepChannels([]);
-		// Seed the apply-to-all inputs from the first assigned channel, so they
-		// reflect what is already on the device rather than appearing empty.
 		const seedIndex = sweepAssigned[0];
 		if (seedIndex !== undefined) {
 			setSweepActuationPoint(
@@ -330,72 +372,75 @@ const HECalibration = ({
 				tenthsToWholePercent(triggers[seedIndex].deactuationPoint),
 			);
 		}
-		await WebApi.setHETriggerOptions({
-			muxChannels: values['muxChannels'],
-			muxSelectPin0: values['muxSelectPin0'],
-			muxSelectPin1: values['muxSelectPin1'],
-			muxSelectPin2: values['muxSelectPin2'],
-			muxSelectPin3: values['muxSelectPin3'],
-			muxADCPin0: values['muxADCPin0'],
-			muxADCPin1: values['muxADCPin1'],
-			muxADCPin2: values['muxADCPin2'],
-			muxADCPin3: values['muxADCPin3'],
-			heTriggerMuxSettleMicros: values['heTriggerMuxSettleMicros'],
-		});
-		if (startId !== sweepStartId.current) return;
-		const result = await WebApi.startHETriggerSweep();
-		if (startId !== sweepStartId.current) {
-			if (result?.active)
-				await WebApi.cancelHETriggerSweep(result.sessionId);
-			return;
+		try {
+			await requestSweep(generation);
+		} catch {
+			if (generation === sweepGeneration.current) {
+				setSweepError(t('HETrigger:sweep-start-error'));
+			}
+		} finally {
+			if (generation === sweepGeneration.current) setSweepBusy(false);
 		}
-		sweepSessionActive.current = Boolean(result?.active);
-		sweepSessionId.current = result?.sessionId;
-		if (!sweepSessionActive.current || sweepSessionId.current === undefined)
-			return;
-		pollSweep();
-		stopSweepPolling();
-		sweepTimerId.current = setInterval(pollSweep, SWEEP_POLL_MS);
 	};
 
 	// Discards the running sweep, if any, without saving. Safe to call more
 	// than once or when no sweep was started.
 	const cancelSweepSession = async () => {
-		sweepStartId.current++;
+		++sweepGeneration.current;
 		stopSweepPolling();
-		if (sweepSessionActive.current) {
+		if (sweepSessionId.current !== undefined) {
 			const sessionId = sweepSessionId.current;
-			sweepSessionActive.current = false;
 			await WebApi.cancelHETriggerSweep(sessionId);
 			if (sweepSessionId.current === sessionId)
 				sweepSessionId.current = undefined;
 		}
 	};
 
+	const saveSweep = async (generation: number) => {
+		if (sweepCommitted.current) return;
+		const result = await WebApi.commitHETriggerSweep(sweepSessionId.current, {
+			actuationPoint: wholePercentToTenths(sweepActuationPoint),
+			deactuationPoint: wholePercentToTenths(sweepDeactuationPoint),
+		});
+		if (generation !== sweepGeneration.current) return;
+		if (result.saved !== true) throw new Error('Sweep was not saved');
+		sweepCommitted.current = true;
+		sweepSessionId.current = undefined;
+	};
+
 	const commitSweep = async () => {
+		if (!canSaveSweep()) return;
 		if (
 			(sweepUnseen.length > 0 || sweepSuspicious.length > 0) &&
 			!window.confirm(t('HETrigger:sweep-save-confirm'))
 		) {
 			return;
 		}
-		sweepStartId.current++;
 		stopSweepPolling();
-		const sessionId = sweepSessionId.current;
-		const result = await WebApi.commitHETriggerSweep(sessionId, {
-			actuationPoint: wholePercentToTenths(sweepActuationPoint),
-			deactuationPoint: wholePercentToTenths(sweepDeactuationPoint),
-		});
-		if (!result?.saved) return;
-		sweepSessionActive.current = false;
-		sweepSessionId.current = undefined;
-		await fetchHETriggers();
-		setShowModal(false);
+		const generation = ++sweepGeneration.current;
+		setSweepBusy(true);
+		setSweepError('');
+		try {
+			await saveSweep(generation);
+			if (generation !== sweepGeneration.current) return;
+			await fetchHETriggers(true);
+			if (generation === sweepGeneration.current) setShowModal(false);
+		} catch {
+			if (generation === sweepGeneration.current)
+				setSweepError(t('HETrigger:sweep-save-error'));
+		} finally {
+			if (generation === sweepGeneration.current) setSweepBusy(false);
+		}
 	};
 
 	const closeModal = async () => {
 		if (calibrateAllLoop) {
-			await cancelSweepSession();
+			try {
+				await cancelSweepSession();
+			} catch {
+				setSweepError(t('HETrigger:sweep-cancel-error'));
+				return;
+			}
 		} else {
 			stopCalibration();
 		}
@@ -824,7 +869,10 @@ const HECalibration = ({
 			: 0;
 		const rowTravel =
 			pressSpan > 0
-				? Math.max(0, Math.min(100, Math.round((pressTravel / pressSpan) * 100)))
+				? Math.max(
+						0,
+						Math.min(100, Math.round((pressTravel / pressSpan) * 100)),
+					)
 				: 0;
 		const moved = Boolean(channel?.moved);
 		const suspicious = assigned && moved && span < SUSPICIOUS_SPAN;
@@ -855,6 +903,11 @@ const HECalibration = ({
 
 	const sweepView = () => (
 		<Row className="mb-3">
+			{sweepError && (
+				<Col xs={12}>
+					<Alert variant="danger">{sweepError}</Alert>
+				</Col>
+			)}
 			<Col xs={12} className="mb-3">
 				{t('HETrigger:sweep-instructions-text')}
 			</Col>
@@ -950,12 +1003,7 @@ const HECalibration = ({
 	// the device.
 	useEffect(() => {
 		return () => {
-			sweepStartId.current++;
-			stopSweepPolling();
-			if (sweepSessionActive.current) {
-				const sessionId = sweepSessionId.current;
-				WebApi.cancelHETriggerSweep(sessionId);
-			}
+			cancelSweepSession().catch(console.error);
 		};
 	}, []);
 
@@ -994,7 +1042,11 @@ const HECalibration = ({
 							<Button variant="secondary" onClick={() => closeModal()}>
 								{t('HETrigger:sweep-cancel-button')}
 							</Button>
-							<Button variant="success" onClick={() => commitSweep()}>
+							<Button
+								variant="success"
+								disabled={!canSaveSweep()}
+								onClick={() => commitSweep()}
+							>
 								{t('HETrigger:sweep-save-button')}
 							</Button>
 						</>

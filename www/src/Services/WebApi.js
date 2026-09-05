@@ -703,25 +703,18 @@ async function getHETriggerState() {
 
 // Begin a calibrate-all sweep session; the firmware captures each channel's
 // resting value as its baseline.
-async function startHETriggerSweep() {
+async function startHETriggerSweep(layout) {
 	return queueHETriggerRequest(async () => {
-		try {
-			const response = await Http.post(`${baseUrl}/api/startHETriggerSweep`);
-			return response.data;
-		} catch (error) {
-			console.error(error);
-		}
+		await Http.post(`${baseUrl}/api/setHETriggerOptions`, layout);
+		const response = await Http.post(`${baseUrl}/api/startHETriggerSweep`);
+		return response.data;
 	});
 }
 
 // Poll the running sweep for each channel's raw reading and observed min/max.
 async function getHETriggerSweep() {
-	try {
-		const response = await Http.get(`${baseUrl}/api/getHETriggerSweep`);
-		return response.data;
-	} catch (error) {
-		console.error(error);
-	}
+	const response = await Http.get(`${baseUrl}/api/getHETriggerSweep`);
+	return response.data;
 }
 
 // Save the sweep's captured idle/pressed values and mark channels calibrated.
@@ -729,29 +722,21 @@ async function getHETriggerSweep() {
 // applies that threshold to every channel as it commits.
 async function commitHETriggerSweep(sessionId, thresholds) {
 	return queueHETriggerRequest(async () => {
-		try {
-			const response = await Http.post(
-				`${baseUrl}/api/commitHETriggerSweep`,
-				{ sessionId, ...thresholds },
-			);
-			return response.data;
-		} catch (error) {
-			console.error(error);
-		}
+		const response = await Http.post(`${baseUrl}/api/commitHETriggerSweep`, {
+			sessionId,
+			...thresholds,
+		});
+		return response.data;
 	});
 }
 
 // Discard the running sweep without saving anything.
 async function cancelHETriggerSweep(sessionId) {
 	return queueHETriggerRequest(async () => {
-		try {
-			const response = await Http.post(`${baseUrl}/api/cancelHETriggerSweep`, {
-				sessionId,
-			});
-			return response.data;
-		} catch (error) {
-			console.error(error);
-		}
+		const response = await Http.post(`${baseUrl}/api/cancelHETriggerSweep`, {
+			sessionId,
+		});
+		return response.data;
 	});
 }
 

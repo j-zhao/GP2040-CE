@@ -61,7 +61,9 @@ static inline int32_t heTravelScaleQ10(int32_t idle, int32_t pressed) {
     const int64_t span = (int64_t)pressed - idle;
     if (span > -HETRIGGER_MIN_SPAN && span < HETRIGGER_MIN_SPAN)
         return 0;
-    return (int32_t)((HETRIGGER_TRAVEL_MAX << 10) / span);
+    // Round away from zero so calibrated full travel reaches the upper clamp.
+    const int64_t magnitude = span < 0 ? -span : span;
+    return (int32_t)(((HETRIGGER_TRAVEL_MAX << 10) + magnitude - 1) / span);
 }
 
 static inline uint16_t heTravelFromRaw(int32_t raw, int32_t idle, int32_t scaleQ10) {
