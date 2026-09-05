@@ -47,6 +47,7 @@ const SWEEP_POLL_MS = 250;
 
 type SweepChannel = {
 	raw: number;
+	baseline: number;
 	min: number;
 	max: number;
 	moved: boolean;
@@ -115,6 +116,7 @@ const HECalibration = ({
 	// channel, in channel order, as last reported by the firmware.
 	const sweepTimerId = useRef<number>();
 	const sweepSessionActive = useRef(false);
+	const sweepStartId = useRef(0);
 	const [sweepChannels, setSweepChannels] = useState<SweepChannel[]>([]);
 
 	// Thresholds applied to every channel on commit, in whole percent. Seeded
@@ -302,6 +304,7 @@ const HECalibration = ({
 	};
 
 	const startSweep = async () => {
+		const startId = ++sweepStartId.current;
 		setSweepChannels([]);
 		// Seed the apply-to-all inputs from the first assigned channel, so they
 		// reflect what is already on the device rather than appearing empty.
@@ -314,7 +317,24 @@ const HECalibration = ({
 				tenthsToWholePercent(triggers[seedIndex].deactuationPoint),
 			);
 		}
+		await WebApi.setHETriggerOptions({
+			muxChannels: values['muxChannels'],
+			muxSelectPin0: values['muxSelectPin0'],
+			muxSelectPin1: values['muxSelectPin1'],
+			muxSelectPin2: values['muxSelectPin2'],
+			muxSelectPin3: values['muxSelectPin3'],
+			muxADCPin0: values['muxADCPin0'],
+			muxADCPin1: values['muxADCPin1'],
+			muxADCPin2: values['muxADCPin2'],
+			muxADCPin3: values['muxADCPin3'],
+			heTriggerMuxSettleMicros: values['heTriggerMuxSettleMicros'],
+		});
+		if (startId !== sweepStartId.current) return;
 		const result = await WebApi.startHETriggerSweep();
+		if (startId !== sweepStartId.current) {
+			if (result?.active) await WebApi.cancelHETriggerSweep();
+			return;
+		}
 		sweepSessionActive.current = Boolean(result?.active);
 		pollSweep();
 		stopSweepPolling();
@@ -324,6 +344,7 @@ const HECalibration = ({
 	// Discards the running sweep, if any, without saving. Safe to call more
 	// than once or when no sweep was started.
 	const cancelSweepSession = async () => {
+		sweepStartId.current++;
 		stopSweepPolling();
 		if (sweepSessionActive.current) {
 			sweepSessionActive.current = false;
@@ -338,6 +359,7 @@ const HECalibration = ({
 		) {
 			return;
 		}
+		sweepStartId.current++;
 		stopSweepPolling();
 		sweepSessionActive.current = false;
 		await WebApi.commitHETriggerSweep({
@@ -769,9 +791,17 @@ const HECalibration = ({
 			? t(`PinMapping:actions.${option.label}`)
 			: t('HETrigger:sweep-unassigned-label');
 		const span = channel ? channel.max - channel.min : 0;
+		const fromMin = channel ? channel.baseline - channel.min : 0;
+		const fromMax = channel ? channel.max - channel.baseline : 0;
+		const pressSpan = Math.max(fromMin, fromMax);
+		const pressTravel = channel
+			? fromMax >= fromMin
+				? channel.raw - channel.baseline
+				: channel.baseline - channel.raw
+			: 0;
 		const rowTravel =
-			channel && span > 0
-				? Math.round(((channel.raw - channel.min) / span) * 100)
+			pressSpan > 0
+				? Math.max(0, Math.min(100, Math.round((pressTravel / pressSpan) * 100)))
 				: 0;
 		const moved = Boolean(channel?.moved);
 		const suspicious = assigned && moved && span < SUSPICIOUS_SPAN;
@@ -897,6 +927,7 @@ const HECalibration = ({
 	// the device.
 	useEffect(() => {
 		return () => {
+			sweepStartId.current++;
 			if (sweepSessionActive.current) {
 				WebApi.cancelHETriggerSweep();
 			}
