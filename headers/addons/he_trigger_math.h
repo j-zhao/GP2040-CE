@@ -49,6 +49,14 @@ static inline uint16_t heClampNoiseFloor(uint32_t value) {
     return value > HETRIGGER_NOISE_FLOOR_MAX ? HETRIGGER_NOISE_FLOOR_MAX : (uint16_t)value;
 }
 
+static inline uint8_t heClampMuxSettleMicros(int64_t value) {
+    if (value < 0)
+        return 0;
+    if (value > 255)
+        return 255;
+    return (uint8_t)value;
+}
+
 static inline int32_t heTravelScaleQ10(int32_t idle, int32_t pressed) {
     const int64_t span = (int64_t)pressed - idle;
     if (span > -HETRIGGER_MIN_SPAN && span < HETRIGGER_MIN_SPAN)

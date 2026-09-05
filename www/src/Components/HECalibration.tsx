@@ -116,7 +116,9 @@ const HECalibration = ({
 	// channel, in channel order, as last reported by the firmware.
 	const sweepTimerId = useRef<number>();
 	const sweepSessionActive = useRef(false);
+	const sweepSessionId = useRef<number>();
 	const sweepStartId = useRef(0);
+	const sweepPollPending = useRef(false);
 	const [sweepChannels, setSweepChannels] = useState<SweepChannel[]>([]);
 
 	// Thresholds applied to every channel on commit, in whole percent. Seeded
@@ -298,8 +300,19 @@ const HECalibration = ({
 		// Pausing while the tab is hidden avoids piling up requests the user
 		// cannot see the results of anyway.
 		if (document.hidden) return;
+		if (sweepPollPending.current) return;
+		if (sweepSessionId.current === undefined) return;
+		const sessionId = sweepSessionId.current;
+		sweepPollPending.current = true;
 		const result = await WebApi.getHETriggerSweep();
-		if (!result || !result.active) return;
+		sweepPollPending.current = false;
+		if (sweepSessionId.current !== sessionId) return;
+		if (!result || !result.active || result.sessionId !== sessionId) {
+			sweepSessionActive.current = false;
+			sweepSessionId.current = undefined;
+			stopSweepPolling();
+			return;
+		}
 		setSweepChannels(result.channels || []);
 	};
 
@@ -332,10 +345,14 @@ const HECalibration = ({
 		if (startId !== sweepStartId.current) return;
 		const result = await WebApi.startHETriggerSweep();
 		if (startId !== sweepStartId.current) {
-			if (result?.active) await WebApi.cancelHETriggerSweep();
+			if (result?.active)
+				await WebApi.cancelHETriggerSweep(result.sessionId);
 			return;
 		}
 		sweepSessionActive.current = Boolean(result?.active);
+		sweepSessionId.current = result?.sessionId;
+		if (!sweepSessionActive.current || sweepSessionId.current === undefined)
+			return;
 		pollSweep();
 		stopSweepPolling();
 		sweepTimerId.current = setInterval(pollSweep, SWEEP_POLL_MS);
@@ -347,8 +364,11 @@ const HECalibration = ({
 		sweepStartId.current++;
 		stopSweepPolling();
 		if (sweepSessionActive.current) {
+			const sessionId = sweepSessionId.current;
 			sweepSessionActive.current = false;
-			await WebApi.cancelHETriggerSweep();
+			await WebApi.cancelHETriggerSweep(sessionId);
+			if (sweepSessionId.current === sessionId)
+				sweepSessionId.current = undefined;
 		}
 	};
 
@@ -361,11 +381,14 @@ const HECalibration = ({
 		}
 		sweepStartId.current++;
 		stopSweepPolling();
-		sweepSessionActive.current = false;
-		await WebApi.commitHETriggerSweep({
+		const sessionId = sweepSessionId.current;
+		const result = await WebApi.commitHETriggerSweep(sessionId, {
 			actuationPoint: wholePercentToTenths(sweepActuationPoint),
 			deactuationPoint: wholePercentToTenths(sweepDeactuationPoint),
 		});
+		if (!result?.saved) return;
+		sweepSessionActive.current = false;
+		sweepSessionId.current = undefined;
 		await fetchHETriggers();
 		setShowModal(false);
 	};
@@ -928,8 +951,10 @@ const HECalibration = ({
 	useEffect(() => {
 		return () => {
 			sweepStartId.current++;
+			stopSweepPolling();
 			if (sweepSessionActive.current) {
-				WebApi.cancelHETriggerSweep();
+				const sessionId = sweepSessionId.current;
+				WebApi.cancelHETriggerSweep(sessionId);
 			}
 		};
 	}, []);

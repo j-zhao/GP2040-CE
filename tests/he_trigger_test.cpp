@@ -30,6 +30,9 @@ static void testConfigurationMath() {
     assert(heClampSmoothingFactor(-1) == 1);
     assert(heClampSmoothingFactor(1000) == 99);
     assert(heClampNoiseFloor(1000) == 100);
+    assert(heClampMuxSettleMicros(-1) == 0);
+    assert(heClampMuxSettleMicros(1000) == 255);
+    assert(heClampMuxSettleMicros(INT64_MAX) == 255);
 
     assert(heNoiseFromRaw(30, 100, 1100) == 30);
     assert(heNoiseFromRaw(30, 1100, 100) == 30);

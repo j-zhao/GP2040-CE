@@ -6,6 +6,16 @@ export const baseUrl =
 		? ''
 		: import.meta.env.VITE_DEV_BASE_URL;
 
+let heTriggerRequestQueue = Promise.resolve();
+const queueHETriggerRequest = (request) => {
+	const result = heTriggerRequestQueue.then(request, request);
+	heTriggerRequestQueue = result.then(
+		() => undefined,
+		() => undefined,
+	);
+	return result;
+};
+
 export const baseButtonMappings = {
 	Up: { pin: -1, key: 0, error: null },
 	Down: { pin: -1, key: 0, error: null },
@@ -660,7 +670,9 @@ async function getHETriggerVoltage(settings) {
 
 // POST function to set our channels, select, and ADC pin
 async function setHETriggerOptions(settings) {
-	return Http.post(`${baseUrl}/api/setHETriggerOptions`, settings);
+	return queueHETriggerRequest(() =>
+		Http.post(`${baseUrl}/api/setHETriggerOptions`, settings),
+	);
 }
 
 async function getHETriggerCalibrations() {
@@ -692,12 +704,14 @@ async function getHETriggerState() {
 // Begin a calibrate-all sweep session; the firmware captures each channel's
 // resting value as its baseline.
 async function startHETriggerSweep() {
-	try {
-		const response = await Http.post(`${baseUrl}/api/startHETriggerSweep`);
-		return response.data;
-	} catch (error) {
-		console.error(error);
-	}
+	return queueHETriggerRequest(async () => {
+		try {
+			const response = await Http.post(`${baseUrl}/api/startHETriggerSweep`);
+			return response.data;
+		} catch (error) {
+			console.error(error);
+		}
+	});
 }
 
 // Poll the running sweep for each channel's raw reading and observed min/max.
@@ -713,26 +727,32 @@ async function getHETriggerSweep() {
 // Save the sweep's captured idle/pressed values and mark channels calibrated.
 // An optional payload of actuationPoint/deactuationPoint (tenths of a percent)
 // applies that threshold to every channel as it commits.
-async function commitHETriggerSweep(thresholds) {
-	try {
-		const response = await Http.post(
-			`${baseUrl}/api/commitHETriggerSweep`,
-			thresholds,
-		);
-		return response.data;
-	} catch (error) {
-		console.error(error);
-	}
+async function commitHETriggerSweep(sessionId, thresholds) {
+	return queueHETriggerRequest(async () => {
+		try {
+			const response = await Http.post(
+				`${baseUrl}/api/commitHETriggerSweep`,
+				{ sessionId, ...thresholds },
+			);
+			return response.data;
+		} catch (error) {
+			console.error(error);
+		}
+	});
 }
 
 // Discard the running sweep without saving anything.
-async function cancelHETriggerSweep() {
-	try {
-		const response = await Http.post(`${baseUrl}/api/cancelHETriggerSweep`);
-		return response.data;
-	} catch (error) {
-		console.error(error);
-	}
+async function cancelHETriggerSweep(sessionId) {
+	return queueHETriggerRequest(async () => {
+		try {
+			const response = await Http.post(`${baseUrl}/api/cancelHETriggerSweep`, {
+				sessionId,
+			});
+			return response.data;
+		} catch (error) {
+			console.error(error);
+		}
+	});
 }
 
 async function getHeldPins(abortSignal) {
