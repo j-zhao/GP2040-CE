@@ -28,7 +28,7 @@ type State = {
 };
 
 type Actions = {
-	fetchHETriggers: () => void;
+	fetchHETriggers: (calibrationOnly?: boolean) => Promise<void>;
 	setHETrigger: (trigger: Trigger & { id: number }) => void;
 	setAllHETriggers: (trigger: Partial<Trigger>) => void;
 	saveHETriggers: () => Promise<object>;
@@ -61,14 +61,29 @@ const INITIAL_STATE: State = {
 
 const useHETriggerStore = create<State & Actions>()((set, get) => ({
 	...INITIAL_STATE,
-	fetchHETriggers: async () => {
+	fetchHETriggers: async (calibrationOnly = false) => {
 		set({ loadingTriggers: true });
-		const triggers = await WebApi.getHETriggerCalibrations();
-		set((state) => ({
-			...state,
-			...triggers,
-			loadingTriggers: false,
-		}));
+		try {
+			const result = await WebApi.getHETriggerCalibrations();
+			if (!result?.triggers) throw new Error('Could not load calibration');
+			set((state) => ({
+				triggers: calibrationOnly
+					? state.triggers.map((trigger, i) => {
+							const { idle, pressed, actuationPoint, deactuationPoint } =
+								result.triggers[i];
+							return {
+								...trigger,
+								idle,
+								pressed,
+								actuationPoint,
+								deactuationPoint,
+							};
+						})
+					: result.triggers,
+			}));
+		} finally {
+			set({ loadingTriggers: false });
+		}
 	},
 	setHETrigger: ({ id, ...trigger }) => {
 		set((state) => {

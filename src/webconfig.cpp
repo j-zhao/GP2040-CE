@@ -1923,12 +1923,14 @@ std::string getHETriggerState()
     return serialize_json(doc);
 }
 
-// Samples per channel while a sweep is polled, folded into a running min/max
-// so a fast press-release still gets caught between polls.
+// Capture extrema between HTTP requests on the network driver's core.
 #define HETRIGGER_SWEEP_SAMPLES 4
+#define HETRIGGER_SWEEP_INTERVAL_US 1000
 
 static bool sweepActive = false;
 static uint32_t sweepSessionId = 0;
+static uint32_t sweepSampledAt = 0;
+static uint16_t sweepRaw[HETRIGGER_COUNT];
 static uint16_t sweepBaseline[HETRIGGER_COUNT];
 static uint16_t sweepMinRaw[HETRIGGER_COUNT];
 static uint16_t sweepMaxRaw[HETRIGGER_COUNT];
@@ -1939,8 +1941,30 @@ static int sweepSelectCount;
 static int32_t sweepMuxChannels;
 static uint32_t sweepSettleMicros;
 
-// Starts an all-channel calibration sweep: one scan taken now becomes every
-// channel's resting baseline, and the poller looks for movement away from it.
+void processHETriggerSweep()
+{
+    if (!sweepActive || time_us_32() - sweepSampledAt < HETRIGGER_SWEEP_INTERVAL_US)
+        return;
+
+    if (!heInitPins(sweepMuxChannels, sweepAdcPins, sweepSelectPins, sweepSelectCount)) {
+        sweepActive = false;
+        return;
+    }
+
+    uint16_t minRaw[HETRIGGER_COUNT];
+    uint16_t maxRaw[HETRIGGER_COUNT];
+    heScanChannels(sweepMuxChannels, sweepSettleMicros, sweepAdcPins, sweepSelectPins,
+                   sweepSelectCount, HETRIGGER_SWEEP_SAMPLES, sweepRaw, minRaw, maxRaw);
+    for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
+        if (!sweepScanned[he])
+            continue;
+        if (minRaw[he] < sweepMinRaw[he]) sweepMinRaw[he] = minRaw[he];
+        if (maxRaw[he] > sweepMaxRaw[he]) sweepMaxRaw[he] = maxRaw[he];
+    }
+    sweepSampledAt = time_us_32();
+}
+
+// Capture resting baselines before the network-driver loop collects movement.
 std::string startHETriggerSweep()
 {
     const size_t capacity = JSON_OBJECT_SIZE(4);
@@ -1957,17 +1981,17 @@ std::string startHETriggerSweep()
     sweepMuxChannels = calibrationMuxChannels;
     sweepSettleMicros = calibrationMuxSettleMicros;
 
-    uint16_t raw[HETRIGGER_COUNT];
     heScanChannels(sweepMuxChannels, sweepSettleMicros, sweepAdcPins, sweepSelectPins,
-                   sweepSelectCount, 1, raw, nullptr, nullptr);
+                   sweepSelectCount, 1, sweepRaw, nullptr, nullptr);
 
     for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
         const uint32_t mux = he / sweepMuxChannels;
         sweepScanned[he] = mux < 4 && sweepAdcPins[mux] >= 26 && sweepAdcPins[mux] <= 29;
-        sweepBaseline[he] = raw[he];
-        sweepMinRaw[he] = raw[he];
-        sweepMaxRaw[he] = raw[he];
+        sweepBaseline[he] = sweepRaw[he];
+        sweepMinRaw[he] = sweepRaw[he];
+        sweepMaxRaw[he] = sweepRaw[he];
     }
+    sweepSampledAt = time_us_32();
     sweepActive = true;
     if (++sweepSessionId == 0)
         sweepSessionId = 1;
@@ -1977,9 +2001,7 @@ std::string startHETriggerSweep()
     return serialize_json(doc);
 }
 
-// Polled while the sweep modal is open. Folds each new scan's samples into
-// the running min/max so a press-release between polls is not missed, and
-// reports which channels have moved far enough to count as pressed.
+// Report the extrema collected by the network-driver loop.
 std::string getHETriggerSweep()
 {
     // 32 channels of 5 members (raw/baseline/min/max/moved), scaled the same way
@@ -1994,21 +2016,10 @@ std::string getHETriggerSweep()
         return serialize_json(doc);
     }
 
-    uint16_t raw[HETRIGGER_COUNT];
-    uint16_t minRaw[HETRIGGER_COUNT];
-    uint16_t maxRaw[HETRIGGER_COUNT];
-    heScanChannels(sweepMuxChannels, sweepSettleMicros, sweepAdcPins, sweepSelectPins,
-                   sweepSelectCount, HETRIGGER_SWEEP_SAMPLES, raw, minRaw, maxRaw);
-
     doc["active"] = true;
     doc["sessionId"] = sweepSessionId;
     JsonArray channelList = doc.createNestedArray("channels");
     for (uint8_t he = 0; he < HETRIGGER_COUNT; he++) {
-        if (sweepScanned[he]) {
-            if (minRaw[he] < sweepMinRaw[he]) sweepMinRaw[he] = minRaw[he];
-            if (maxRaw[he] > sweepMaxRaw[he]) sweepMaxRaw[he] = maxRaw[he];
-        }
-
         // Baseline sits inside [min, max] by construction, so both distances
         // are already non-negative and the larger one is the true swing,
         // whether the sensor reads high or low once pressed.
@@ -2017,8 +2028,8 @@ std::string getHETriggerSweep()
         const bool moved = (fromMin >= HETRIGGER_MIN_SPAN) || (fromMax >= HETRIGGER_MIN_SPAN);
 
         JsonObject channel = channelList.createNestedObject();
-        channel["raw"] = raw[he];
         channel["baseline"] = sweepBaseline[he];
+        channel["raw"] = sweepRaw[he];
         channel["min"] = sweepMinRaw[he];
         channel["max"] = sweepMaxRaw[he];
         channel["moved"] = moved;

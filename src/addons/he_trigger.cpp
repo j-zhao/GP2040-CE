@@ -209,7 +209,7 @@ void HETriggerAddon::updateChannel(const ScanEntry& entry, uint16_t raw) {
         state.smoothedQ8 = (uint32_t)raw << 8;
     }
 
-    const uint16_t travel = heTravelFromRaw((int32_t)(state.smoothedQ8 >> 8), entry.idle, entry.scaleQ10);
+    const uint16_t travel = heTravelFromRaw((int32_t)((state.smoothedQ8 + 128) >> 8), entry.idle, entry.scaleQ10);
     state.travel = travel;
 
     heUpdateDigitalState(state.active, state.peak, state.valley, travel, th);

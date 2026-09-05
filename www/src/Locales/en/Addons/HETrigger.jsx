@@ -100,6 +100,14 @@ export default {
 		'Some channels were not seen, or moved only a small amount. Save anyway?',
 	'sweep-save-button': 'Save Calibration',
 	'sweep-cancel-button': 'Cancel',
+	'sweep-start-error':
+		'Could not start calibration. Close this window and try again.',
+	'sweep-read-error':
+		'Could not read the calibration session. Check the device connection.',
+	'sweep-save-error':
+		'Could not complete calibration save. Check the device connection and try again.',
+	'sweep-cancel-error':
+		'Could not cancel calibration. Check the device connection and try again.',
 	'sweep-actuation-input-text': 'Actuation Point (%) - Applies to All Channels',
 	'sweep-deactuation-input-text':
 		'Deactuation Point (%) - Applies to All Channels',
