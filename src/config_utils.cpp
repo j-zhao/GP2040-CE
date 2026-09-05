@@ -1741,16 +1741,60 @@ void heTriggerThresholdsMigration(Config& config)
         // lower bound on both rapid trigger sensitivities, so a wide band over a
         // narrow span has to be capped or rapid trigger could never fire.
         if (trigger.has_noise) {
-            const int32_t span = trigger.pressed - trigger.idle;
-            const int32_t magnitude = (span < 0) ? -span : span;
-            int32_t noiseFloor = (trigger.noise * HETRIGGER_TRAVEL_MAX) / magnitude;
+            const uint16_t sensitivity = heNoiseFromRaw(trigger.noise, trigger.idle, trigger.pressed);
+            INIT_UNSET_PROPERTY(trigger, rtPressSensitivity, sensitivity);
+            INIT_UNSET_PROPERTY(trigger, rtReleaseSensitivity, sensitivity);
+
+            uint16_t noiseFloor = sensitivity;
             if (noiseFloor > HETRIGGER_NOISE_FLOOR_MAX)
                 noiseFloor = HETRIGGER_NOISE_FLOOR_MAX;
-            INIT_UNSET_PROPERTY(options, noiseFloor, (uint16_t)noiseFloor);
+            INIT_UNSET_PROPERTY(options, noiseFloor, noiseFloor);
         }
     }
 
     config.migrations.heTriggerThresholdsMigrated = true;
+}
+
+void ConfigUtils::sanitizeHETriggerOptions(HETriggerOptions& options)
+{
+    if (!heValidMuxChannels(options.muxChannels))
+        options.muxChannels = heValidMuxChannels(HETRIGGER_MUX_CHANNELS) ? HETRIGGER_MUX_CHANNELS : 8;
+
+    options.smoothingFactor = heClampSmoothingFactor(options.smoothingFactor);
+    options.noiseFloor = heClampNoiseFloor(options.noiseFloor);
+    if (options.analogDeadzone > HETRIGGER_TRAVEL_MAX)
+        options.analogDeadzone = HETRIGGER_TRAVEL_MAX;
+    if (options.analogCurve < HEAnalogCurve::HE_CURVE_LINEAR ||
+            options.analogCurve > HEAnalogCurve::HE_CURVE_S)
+        options.analogCurve = HEAnalogCurve::HE_CURVE_LINEAR;
+
+    if (options.triggers_count > HETRIGGER_COUNT)
+        options.triggers_count = HETRIGGER_COUNT;
+    for (uint16_t he = 0; he < options.triggers_count; he++) {
+        HETriggerInfo& trigger = options.triggers[he];
+        trigger.idle = heClampRaw(trigger.idle);
+        trigger.pressed = heClampRaw(trigger.pressed);
+        trigger.actuationPoint = trigger.actuationPoint ? heClampTravel(trigger.actuationPoint) : 1;
+        trigger.deactuationPoint = heClampTravel(trigger.deactuationPoint);
+        trigger.rtPressSensitivity = heClampTravel(trigger.rtPressSensitivity);
+        trigger.rtReleaseSensitivity = heClampTravel(trigger.rtReleaseSensitivity);
+        if (trigger.rtMode < HERapidTriggerMode::HE_RT_OFF ||
+                trigger.rtMode > HERapidTriggerMode::HE_RT_CONTINUOUS)
+            trigger.rtMode = HERapidTriggerMode::HE_RT_OFF;
+        if (trigger.socdPartner > HETRIGGER_COUNT)
+            trigger.socdPartner = 0;
+    }
+}
+
+void ConfigUtils::sanitizeHEProfileSettings(HEProfileSettings& settings)
+{
+    settings.actuationPoint = settings.actuationPoint ? heClampTravel(settings.actuationPoint) : 1;
+    settings.deactuationPoint = heClampTravel(settings.deactuationPoint);
+    settings.rtPressSensitivity = heClampTravel(settings.rtPressSensitivity);
+    settings.rtReleaseSensitivity = heClampTravel(settings.rtReleaseSensitivity);
+    if (settings.rtMode < HERapidTriggerMode::HE_RT_OFF ||
+            settings.rtMode > HERapidTriggerMode::HE_RT_CONTINUOUS)
+        settings.rtMode = HERapidTriggerMode::HE_RT_OFF;
 }
 
 void hotkeysMigration(Config& config)
@@ -1893,6 +1937,10 @@ void ConfigUtils::load(Config& config)
     // Make sure that fields that were not deserialized are properly initialized.
     // They were probably added with a newer version of the firmware.
     initUnsetPropertiesWithDefaults(config);
+    sanitizeHETriggerOptions(config.addonOptions.heTriggerOptions);
+    sanitizeHEProfileSettings(config.gpioMappings.settings.heSettings);
+    for (uint16_t profile = 0; profile < config.profileOptions.gpioMappingsSets_count; profile++)
+        sanitizeHEProfileSettings(config.profileOptions.gpioMappingsSets[profile].settings.heSettings);
 
     // Run migrations that need to happen after initUnset...
     // ProtoBuf && Board Config settings are loaded here
@@ -2563,6 +2611,10 @@ bool ConfigUtils::fromJSON(Config& config, const char* data, size_t dataLen)
         heTriggerThresholdsMigration(config);
 
     initUnsetPropertiesWithDefaults(config);
+    sanitizeHETriggerOptions(config.addonOptions.heTriggerOptions);
+    sanitizeHEProfileSettings(config.gpioMappings.settings.heSettings);
+    for (uint16_t profile = 0; profile < config.profileOptions.gpioMappingsSets_count; profile++)
+        sanitizeHEProfileSettings(config.profileOptions.gpioMappingsSets[profile].settings.heSettings);
 
     // we need to run migrations here too, in case the json document changed pins or things derived from pins
     gpioMappingsMigrationCore(config);
