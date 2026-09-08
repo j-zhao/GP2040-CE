@@ -468,14 +468,15 @@ std::string setDisplayOptions(DisplayOptions& displayOptions)
 
 std::string setDisplayOptions()
 {
-    std::string response = setDisplayOptions(Storage::getInstance().getDisplayOptions());
+    std::string response = setDisplayOptions(Storage::getInstance().getConfig().displayOptions);
+    Storage::getInstance().clearDisplayPreview();
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
     return response;
 }
 
 std::string setPreviewDisplayOptions()
 {
-    std::string response = setDisplayOptions(Storage::getInstance().getDisplayOptions());
+    std::string response = setDisplayOptions(Storage::getInstance().getPreviewDisplayOptions());
     return response;
 }
 
@@ -483,7 +484,7 @@ std::string getDisplayOptions() // Manually set Document Attributes for the disp
 {
     const size_t capacity = JSON_OBJECT_SIZE(100);
     DynamicJsonDocument doc(capacity);
-    const DisplayOptions& displayOptions = Storage::getInstance().getDisplayOptions();
+    const DisplayOptions& displayOptions = Storage::getInstance().getConfig().displayOptions;
     writeDoc(doc, "enabled", displayOptions.enabled ? 1 : 0);
     writeDoc(doc, "flipDisplay", displayOptions.flip);
     writeDoc(doc, "invertDisplay", displayOptions.invert ? 1 : 0);
@@ -525,7 +526,7 @@ std::string getDisplayOptions() // Manually set Document Attributes for the disp
 
 std::string getSplashImage()
 {
-    const DisplayOptions& displayOptions = Storage::getInstance().getDisplayOptions();
+    const DisplayOptions& displayOptions = Storage::getInstance().getConfig().displayOptions;
     const size_t capacity = JSON_OBJECT_SIZE(1) + JSON_ARRAY_SIZE(displayOptions.splashImage.size);
     DynamicJsonDocument doc(capacity);
     JsonArray splashImageArray = doc.createNestedArray("splashImage");
@@ -537,7 +538,7 @@ std::string setSplashImage()
 {
     DynamicJsonDocument doc = get_post_data();
 
-    DisplayOptions& displayOptions = Storage::getInstance().getDisplayOptions();
+    DisplayOptions& displayOptions = Storage::getInstance().getConfig().displayOptions;
 
     std::string decoded;
     std::string base64String = doc["splashImage"];
@@ -546,6 +547,7 @@ std::string setSplashImage()
 
     memcpy(displayOptions.splashImage.bytes, decoded.data(), length);
     displayOptions.splashImage.size = length;
+    Storage::getInstance().clearDisplayPreview();
 
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 
@@ -2582,6 +2584,7 @@ DataAndStatusCode setConfig()
     if (ConfigUtils::fromJSON(*config.get(), http_post_payload, http_post_payload_len))
     {
         Storage::getInstance().getConfig() = *config.get();
+        Storage::getInstance().clearDisplayPreview();
         config.reset();
         if (Storage::getInstance().save(true))
         {

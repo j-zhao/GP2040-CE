@@ -219,9 +219,9 @@ export default function DisplayConfigPage() {
 	}, []);
 
 	const onSuccess = async (values) => {
-		const success = await WebApi.setDisplayOptions(values, false).then(() =>
-			WebApi.setSplashImage(values),
-		);
+		setSaveMessage('');
+		const displaySaved = await WebApi.setDisplayOptions(values, false);
+		const success = displaySaved && (await WebApi.setSplashImage(values));
 
 		if (success) await updateUsedPins();
 

@@ -67,6 +67,7 @@ export default function BackupPage() {
 	const [noticeMessage, setNoticeMessage] = useState('');
 	const [saveMessage, setSaveMessage] = useState('');
 	const [loadMessage, setLoadMessage] = useState('');
+	const [isRestoring, setIsRestoring] = useState(false);
 	const { setLoading } = useContext(AppContext);
 
 	const { t } = useTranslation('');
@@ -99,16 +100,22 @@ export default function BackupPage() {
 	};
 
 	const setOptionsToAPIStorage = async (options) => {
+		let success = true;
 		for (const [key, func] of Object.entries(API_BINDING)) {
 			const values = options[key];
 			if (values) {
 				try {
-					await func.set(values);
+					if (!(await func.set(values))) {
+						throw new Error('Request failed');
+					}
+					setOptionStateData((previous) => ({ ...previous, [key]: values }));
 				} catch (error) {
+					success = false;
 					setNoticeMessage(`Failed to set ${key} options: ${error.message}`);
 				}
 			}
 		}
+		return success;
 	};
 
 	const handleSave = async () => {
@@ -143,6 +150,8 @@ export default function BackupPage() {
 	};
 
 	const handleFileSelect = (ev) => {
+		setLoadMessage('');
+		setNoticeMessage('');
 		const input = ev.target;
 		if (!input) {
 			setNoticeMessage(`Unknown browser error, missing event data!`);
@@ -156,7 +165,7 @@ export default function BackupPage() {
 		const fileName = input.files[0].name;
 
 		let reader = new FileReader();
-		reader.onload = function () {
+		reader.onload = async function () {
 			let fileData = undefined;
 			try {
 				fileData = JSON.parse(reader.result);
@@ -179,18 +188,16 @@ export default function BackupPage() {
 			}
 
 			if (Object.keys(filteredData).length > 0) {
-				const nextOptions = { ...optionState, ...filteredData };
-				setOptionStateData(nextOptions);
+				setIsRestoring(true);
+				const success = await setOptionsToAPIStorage(filteredData);
+				setIsRestoring(false);
 
-				// write to internal storage
-				setOptionsToAPIStorage(filteredData); // Only send the filtered data, not the entire state
-
-				setLoadMessage(`Loaded ${fileName}`);
-				setNoticeMessage('');
-
-				setTimeout(() => {
-					setLoadMessage('');
-				}, 5000);
+				if (success) {
+					setLoadMessage(`Loaded ${fileName}`);
+					setTimeout(() => {
+						setLoadMessage('');
+					}, 5000);
+				}
 			}
 		};
 		reader.onerror = () => {
@@ -230,7 +237,7 @@ export default function BackupPage() {
 							flexDirection: 'row',
 						}}
 					>
-						<Button type="submit" onClick={handleSave}>
+						<Button type="submit" onClick={handleSave} disabled={isRestoring}>
 							{t('Common:button-save-label')}
 						</Button>
 						<div
@@ -287,6 +294,7 @@ export default function BackupPage() {
 						}}
 					>
 						<Button
+							disabled={isRestoring}
 							onClick={() => {
 								inputFileSelect.current.click();
 							}}

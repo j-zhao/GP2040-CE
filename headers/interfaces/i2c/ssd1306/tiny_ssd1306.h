@@ -92,9 +92,12 @@ class GPGFX_TinySSD1306 : public GPGFX_DisplayBase {
         GPGFX_DisplayTypeOptions _options;
 
         void sendCommand(uint8_t command);
-        void sendCommands(uint8_t* commands, uint16_t length);
+        bool sendCommands(uint8_t* commands, uint16_t length);
+        bool writeFrameBuffer(const uint8_t* pixels);
 
         uint8_t frameBuffer[MAX_SCREEN_SIZE];
+        uint8_t lastFrameBuffer[MAX_SCREEN_SIZE];
+        bool hasLastFrame = false;
         uint8_t framePage = 0;
 
         uint8_t screenType;

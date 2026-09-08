@@ -38,7 +38,16 @@ public:
 	PinMappings& getDeprecatedPinMappings() { return config.deprecatedPinMappings; }
 	GpioMappings& getGpioMappings() { return config.gpioMappings; }
 	KeyboardMapping& getKeyboardMapping() { return config.keyboardMapping; }
-	DisplayOptions& getDisplayOptions() { return config.displayOptions; }
+	// Renderers use preview options. Persistent writes use getConfig().displayOptions.
+	const DisplayOptions& getDisplayOptions() const { return displayPreviewActive ? previewDisplayOptions : config.displayOptions; }
+	DisplayOptions& getPreviewDisplayOptions() {
+		if (!displayPreviewActive) {
+			previewDisplayOptions = config.displayOptions;
+			displayPreviewActive = true;
+		}
+		return previewDisplayOptions;
+	}
+	void clearDisplayPreview() { displayPreviewActive = false; }
 	LEDOptions& getLedOptions() { return config.ledOptions; }
 	AddonOptions& getAddonOptions() { return config.addonOptions; }
 	AnimationOptions& getAnimationOptions() { return config.animationOptions; }
@@ -75,6 +84,8 @@ private:
 	Gamepad * processedGamepad = nullptr; // Gamepad with ONLY processed data
 	uint8_t featureData[32]; // USB X-Input Feature Data
 	Config config;
+	DisplayOptions previewDisplayOptions;
+	std::atomic<bool> displayPreviewActive{false};
 	GpioMappingInfo functionalPinMappings[NUM_BANK0_GPIOS];
 	uint32_t systemFlashSize;
 };

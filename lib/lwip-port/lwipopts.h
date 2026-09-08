@@ -58,6 +58,11 @@
 #define LWIP_HTTPD_CGI_SSI              0
 #define LWIP_HTTPD_SSI_INCLUDE_TAG      0
 #define LWIP_HTTPD_CUSTOM_FILES         1
+/* Match the SDK file layout to the custom adapter. */
+#define LWIP_HTTPD_FILE_EXTENSION       1
+/* TCP retains queued data after the API response owner is released. */
+#define HTTP_IS_DATA_VOLATILE(hs) \
+  (HTTP_IS_DYNAMIC_FILE(hs) || ((hs)->handle && (hs)->handle->pextension) ? TCP_WRITE_FLAG_COPY : 0)
 #define LWIP_HTTPD_SUPPORT_POST         1
 #define LWIP_HTTPD_SUPPORT_V09          0
 #define LWIP_HTTPD_SUPPORT_11_KEEPALIVE 0 // Causes lockups with CGI requests
