@@ -15,6 +15,42 @@
 #include "config.pb.h"
 #include "class/hid/hid.h"
 
+#include "display/DisplayFrame.h"
+#include "pico/mutex.h"
+
+namespace {
+auto_init_mutex(displayFrameMutex);
+
+struct FrameMutex {
+    void lock() { mutex_enter_blocking(&displayFrameMutex); }
+    void unlock() { mutex_exit(&displayFrameMutex); }
+};
+
+FrameMutex frameMutex;
+DisplayFrameMailbox<FrameMutex> displayFrames(frameMutex);
+}
+
+void DisplayAddon::copyDisplayFrame(DisplayFrame& frame) {
+    displayFrames.copy(frame);
+}
+
+void DisplayAddon::captureDisplayFrame(bool available) {
+    if (!displayFrames.beginCapture()) return;
+    DisplayFrame& frame = displayFrames.pending();
+    frame = {};
+    if (available) {
+        auto* driver = gpDisplay->getDriver();
+        auto* metrics = driver->getMetrics();
+        if (metrics && metrics->depth == 1) {
+            frame.capture(metrics->width, metrics->height,
+                          currDisplayMode == DisplayMode::BUTTONS,
+                          gpOptions.orientation, gpOptions.inverted,
+                          [driver](uint16_t x, uint16_t y) { return driver->getPixel(x, y); });
+        }
+    }
+    displayFrames.publish();
+}
+
 bool DisplayAddon::available() {
     const DisplayOptions& options = Storage::getInstance().getDisplayOptions();
     bool result = false;
@@ -202,6 +238,7 @@ void DisplayAddon::process() {
     // If GPDisplay is not loaded or we're in standard mode with display power off enabled
     if (gpDisplay->getDriver() == nullptr ||
         (!configMode && isDisplayPowerOff())) {
+        captureDisplayFrame(false);
         return;
     }
 
@@ -213,6 +250,7 @@ void DisplayAddon::process() {
 
     int8_t screenReturn = gpScreen->update();
     gpScreen->draw();
+    captureDisplayFrame(true);
 
     if (!configMode && screenReturn < 0) {
         Mask_t values = Storage::getInstance().GetGamepad()->debouncedGpio;

@@ -4,6 +4,13 @@
 #include "GPGFX.h"
 #include "GPGFX_UI.h"
 
+typedef struct {
+    double scaleX;
+    double scaleY;
+    uint16_t offsetX;
+    uint16_t offsetY;
+} GPViewportTransform;
+
 class GPWidget : public GPGFX_UI {
     public:
         GPWidget() {}
@@ -29,6 +36,31 @@ class GPWidget : public GPGFX_UI {
 
         double getScaleX() { return ((double)(this->getViewport().right - this->getViewport().left) / (double)(getRenderer()->getDriver()->getMetrics()->width)); }
         double getScaleY() { return ((double)(this->getViewport().bottom - this->getViewport().top) / (double)(getRenderer()->getDriver()->getMetrics()->height)); }
+
+        // Every element draws through the same viewport transform, so they stay
+        // aligned with each other. The scales are made proportionate when one
+        // axis is unscaled, then the scaled screen is centered in the viewport.
+        // Both offsets are 0 while the viewport fills the screen.
+        GPViewportTransform getViewportTransform() {
+            double scaleX = this->getScaleX();
+            double scaleY = this->getScaleY();
+
+            if ((scaleX > 0.0f) & ((scaleY == 0.0f) || (scaleY == 1.0f))) {
+                scaleY = scaleX;
+            } else if (((scaleX == 0.0f) || (scaleX == 1.0f)) & (scaleY > 0.0f)) {
+                scaleX = scaleY;
+            }
+
+            double centerX = ((double)(this->getViewport().right - this->getViewport().left) - ((double)getRenderer()->getDriver()->getMetrics()->width * scaleX)) / 2.0f;
+            double centerY = ((double)(this->getViewport().bottom - this->getViewport().top) - ((double)getRenderer()->getDriver()->getMetrics()->height * scaleY)) / 2.0f;
+
+            return {
+                scaleX,
+                scaleY,
+                (centerX > 0.0f) ? (uint16_t)centerX : (uint16_t)0,
+                (centerY > 0.0f) ? (uint16_t)centerY : (uint16_t)0
+            };
+        }
 
         void setVisibility(bool visible) { this->_visibility = visible; }
         bool getVisibility() { return this->_visibility; }

@@ -877,6 +877,12 @@ app.get('/api/getButtonLayoutDefs', (req, res) => {
 	});
 });
 
+// The preview reads layout geometry from the device. There is no layout data
+// to mock here, so report none and let the preview hide itself.
+app.get('/api/getButtonLayouts', (req, res) => {
+	return res.send({});
+});
+
 app.get('/api/getReactiveLEDs', (req, res) => {
 	return res.send({
 		leds: [

@@ -42,7 +42,9 @@ class EventManager {
 
         void registerEventHandler(GPEventType eventType, EventFunction handler);
         void unregisterEventHandler(GPEventType eventType, EventFunction handler);
+        // Both overloads dispatch synchronously. The pointer overload also deletes the event.
         void triggerEvent(GPEvent* event);
+        void triggerEvent(GPEvent& event);
     private:
         EventManager(){}
 

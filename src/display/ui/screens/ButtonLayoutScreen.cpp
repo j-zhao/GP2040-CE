@@ -8,8 +8,8 @@
 
 void ButtonLayoutScreen::init() {
     isInputHistoryEnabled = Storage::getInstance().getDisplayOptions().inputHistoryEnabled;
-    inputHistoryX = Storage::getInstance().getDisplayOptions().inputHistoryRow;
-    inputHistoryY = Storage::getInstance().getDisplayOptions().inputHistoryCol;
+    inputHistoryX = Storage::getInstance().getDisplayOptions().inputHistoryCol;
+    inputHistoryY = Storage::getInstance().getDisplayOptions().inputHistoryRow;
     inputHistoryLength = Storage::getInstance().getDisplayOptions().inputHistoryLength;
     bannerDelayStart = getMillis();
     gamepad = Storage::getInstance().GetGamepad();
@@ -268,13 +268,17 @@ void ButtonLayoutScreen::generateHeader() {
 }
 
 void ButtonLayoutScreen::drawScreen() {
+    const size_t maxChars = getRenderer()->getDriver()->getMetrics()->width / 6; // 6x8 font
+    if (statusBar.length() > maxChars)
+        statusBar.resize(maxChars);
+
     if (bannerDisplay) {
         getRenderer()->drawRectangle(0, 0, 128, 7, true, true);
     	getRenderer()->drawText(0, 0, statusBar, true);
     } else {
 		getRenderer()->drawText(0, 0, statusBar);
 	}
-    getRenderer()->drawText(0, 7, footer);
+    getRenderer()->drawText(inputHistoryX, inputHistoryY, footer);
 }
 
 GPLever* ButtonLayoutScreen::addLever(uint16_t startX, uint16_t startY, uint16_t sizeX, uint16_t sizeY, uint16_t strokeColor, uint16_t fillColor, uint16_t inputType) {

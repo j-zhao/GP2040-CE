@@ -9,6 +9,8 @@ namespace ConfigUtils {
     bool save(Config& config);
     
     void initUnsetPropertiesWithDefaults(Config& config);
+    void sanitizeHETriggerOptions(HETriggerOptions& options);
+    void sanitizeHEProfileSettings(HEProfileSettings& settings);
 
     std::string toJSON(const Config& config);
     bool fromJSON(Config& config, const char* data, size_t dataLen);

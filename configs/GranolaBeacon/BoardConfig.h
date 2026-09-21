@@ -48,8 +48,9 @@
 #define GPIO_PIN_24 GpioAction::BUTTON_PRESS_R2
 #define GPIO_PIN_25 GpioAction::BUTTON_PRESS_L2
 
-// Threshold for Trigger Active (12-bit ADC values)
-#define HETRIGGER_DEFAULT_ACTIVE 2000
+// Threshold for Trigger Active, as travel in tenths of a percent. This is the
+// 2000-count threshold this board shipped with, over the default 150-3500 span.
+#define HETRIGGER_DEFAULT_ACTUATION 552
 
 // Keyboard Mapping Configuration
 //                                            // GP2040 | Xinput | Switch  | PS3/4/5  | Dinput | Arcade |

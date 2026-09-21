@@ -9,6 +9,7 @@ extern "C" {
 
 int fs_open_custom(struct fs_file *file, const char *name);
 void fs_close_custom(struct fs_file *file);
+void processHETriggerSweep(void);
 
 #ifdef __cplusplus
 }

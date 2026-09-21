@@ -2,16 +2,24 @@ import { create } from 'zustand';
 
 import WebApi from '../Services/WebApi';
 import { PinActionValues } from '../Data/Pins';
+import { tenthsToWholePercent } from '../Services/Utilities';
 
+// Travel values are tenths of a percent of the calibrated idle-to-pressed
+// span, 0-1000, matching the firmware. idle and pressed stay in raw ADC counts
+// because they are what defines that span.
 export type Trigger = {
 	action: PinActionValues;
 	idle: number;
-	active: number;
 	pressed: number;
-	is_polarized: boolean;
-	release: number;
-	noise: number;
-	rapidTrigger: boolean;
+	actuationPoint: number;
+	// 0 mirrors actuationPoint
+	deactuationPoint: number;
+	rtMode: number;
+	rtPressSensitivity: number;
+	// 0 mirrors rtPressSensitivity
+	rtReleaseSensitivity: number;
+	// 0 is no partner, otherwise the partner channel index plus one
+	socdPartner: number;
 };
 
 type State = {
@@ -20,38 +28,64 @@ type State = {
 };
 
 type Actions = {
-	fetchHETriggers: () => void;
+	fetchHETriggers: (calibrationOnly?: boolean) => Promise<void>;
 	setHETrigger: (trigger: Trigger & { id: number }) => void;
 	setAllHETriggers: (trigger: Partial<Trigger>) => void;
 	saveHETriggers: () => Promise<object>;
 };
 
+export const TRAVEL_MAX = 1000;
+
+// Travel is stored as tenths of a percent, but the UI only shows whole
+// percent, so 450 reads as 45%.
+export const formatTravel = (value: number) =>
+	`${tenthsToWholePercent(value)}%`;
+
+const DEFAULT_TRIGGER: Trigger = {
+	action: -10,
+	idle: 150,
+	pressed: 3500,
+	actuationPoint: 450,
+	deactuationPoint: 0,
+	rtMode: 0,
+	rtPressSensitivity: 30,
+	rtReleaseSensitivity: 0,
+	socdPartner: 0,
+};
+
 const INITIAL_STATE: State = {
-    triggers: Array(32).map(()=>({ 
-		action:-10,
-		idle:100,
-		active:2000,
-		pressed:3500,
-		is_polarized: false,
-		release:2000,
-		noise:50,
-		rapidTrigger:false
-	})),
+	// Array(32).map leaves the holes untouched, so the defaults never appear
+	triggers: Array.from({ length: 32 }, () => ({ ...DEFAULT_TRIGGER })),
 	loadingTriggers: false,
 };
 
 const useHETriggerStore = create<State & Actions>()((set, get) => ({
 	...INITIAL_STATE,
-	fetchHETriggers: async () => {
+	fetchHETriggers: async (calibrationOnly = false) => {
 		set({ loadingTriggers: true });
-		const triggers = await WebApi.getHETriggerCalibrations();
-		set((state) => ({
-			...state,
-			...triggers,
-			loadingTriggers: false,
-		}));
+		try {
+			const result = await WebApi.getHETriggerCalibrations();
+			if (!result?.triggers) throw new Error('Could not load calibration');
+			set((state) => ({
+				triggers: calibrationOnly
+					? state.triggers.map((trigger, i) => {
+							const { idle, pressed, actuationPoint, deactuationPoint } =
+								result.triggers[i];
+							return {
+								...trigger,
+								idle,
+								pressed,
+								actuationPoint,
+								deactuationPoint,
+							};
+						})
+					: result.triggers,
+			}));
+		} finally {
+			set({ loadingTriggers: false });
+		}
 	},
-	setHETrigger: ({ id, ...trigger}) => {
+	setHETrigger: ({ id, ...trigger }) => {
 		set((state) => {
 			const newTriggers = [...state.triggers];
 			if (newTriggers[id]) {

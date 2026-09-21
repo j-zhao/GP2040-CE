@@ -7,6 +7,8 @@ import { Trans, useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 
 import { AppContext } from '../Contexts/AppContext';
+import ButtonLayoutPreview from '../Components/ButtonLayoutPreview';
+import DisplayPreview from '../Components/DisplayPreview';
 import FormControl from '../Components/FormControl';
 import FormSelect from '../Components/FormSelect';
 import Section from '../Components/Section';
@@ -187,7 +189,7 @@ const FormContext = () => {
 };
 
 const isButtonLayoutCustom = (values) =>
-	values.buttonLayout === 12 || values.buttonLayoutRight === 16;
+	Number(values.buttonLayout) === 12 || Number(values.buttonLayoutRight) === 16;
 
 export default function DisplayConfigPage() {
 	const [loadingValues, setLoadingValues] = useState(true);
@@ -219,9 +221,9 @@ export default function DisplayConfigPage() {
 	}, []);
 
 	const onSuccess = async (values) => {
-		const success = await WebApi.setDisplayOptions(values, false).then(() =>
-			WebApi.setSplashImage(values),
-		);
+		setSaveMessage('');
+		const displaySaved = await WebApi.setDisplayOptions(values, false);
+		const success = displaySaved && (await WebApi.setSplashImage(values));
 
 		if (success) await updateUsedPins();
 
@@ -450,6 +452,9 @@ export default function DisplayConfigPage() {
 												))}
 											</FormSelect>
 										</Row>
+										<Row className="mb-4">
+											<ButtonLayoutPreview values={values} />
+										</Row>
 										{isButtonLayoutCustom(values) && (
 											<Row className="mb-3">
 												<FormLabel>
@@ -648,6 +653,9 @@ export default function DisplayConfigPage() {
 												</Col>
 											</Row>
 										)}
+										<Row className="mb-4">
+											<DisplayPreview />
+										</Row>
 										<h1>{t('DisplayConfig:section.status-layout-header')}</h1>
 										<Row className="mb-4">
 											<div className="col-sm-2 mb-3">
