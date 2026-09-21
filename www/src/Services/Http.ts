@@ -4,10 +4,11 @@
 type GetOptions = {
 	headers?: Record<string, string>;
 	signal?: AbortSignal;
+	requireSuccess?: boolean;
 };
 
 class Http {
-	async get(url: string, { headers = {}, signal }: GetOptions = {}) {
+	async get(url: string, { headers = {}, signal, requireSuccess = false }: GetOptions = {}) {
 		try {
 			const response = await fetch(url, {
 				method: 'GET',
@@ -18,6 +19,11 @@ class Http {
 				signal,
 			});
 
+			if (requireSuccess && !response.ok) {
+				throw Object.assign(new Error(`HTTP ${response.status}`), {
+					status: response.status,
+				});
+			}
 			const json = await response.json();
 			return Promise.resolve({ data: json });
 		} catch (err) {

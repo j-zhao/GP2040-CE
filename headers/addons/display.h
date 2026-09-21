@@ -229,7 +229,10 @@ public:
     void handleSystemRestart(GPEvent* e);
     void handleMenuNavigation(GPEvent* e);
     void handleSystemError(GPEvent* e);
+
+    static void copyDisplayFrame(struct DisplayFrame& frame);
 private:
+    void captureDisplayFrame(bool available);
     bool updateDisplayScreen();
     void setMenuMappings();
     const DisplayOptions& getDisplayOptions();
@@ -254,6 +257,7 @@ private:
     GamepadButtonMapping *mapMenuToggle;
     GamepadButtonMapping *mapMenuSelect;
     std::string errorMessage;
+
 };
 
 #endif

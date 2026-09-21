@@ -394,6 +394,14 @@ async function getButtonLayouts() {
 	}
 }
 
+async function getDisplayFrame(signal) {
+	const response = await Http.get(`${baseUrl}/api/getDisplayFrame`, {
+		signal,
+		requireSuccess: true,
+	});
+	return response.data;
+}
+
 async function getButtonLayoutDefs() {
 	try {
 		const response = await Http.get(`${baseUrl}/api/getButtonLayoutDefs`);
@@ -814,6 +822,7 @@ export default {
 	setReactiveLEDs,
 	getButtonLayouts,
 	getButtonLayoutDefs,
+	getDisplayFrame,
 	getSplashImage,
 	setSplashImage,
 	getUsedPins,
